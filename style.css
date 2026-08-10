@@ -2449,3 +2449,21 @@ body.dark .empty-state {
 
 }
 
+.settings-logout-button {
+    margin-top: 16px;
+    width: 100%;
+    padding: 12px 16px;
+    border: 1px solid #e2e2e2;
+    border-radius: 10px;
+    background: #fff5f5;
+    color: #d33;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+.settings-logout-button:hover {
+    background: #ffe5e5;
+}
