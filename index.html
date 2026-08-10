@@ -1,5 +1,6 @@
 
 <!DOCTYPE html>
+
 <html lang="en">
 
 <head>
@@ -848,23 +849,26 @@
     </div>
 
 
-    <!-- JAVASCRIPT -->
-    <script src="script.js"></script>
-    <script>
-if ("serviceWorker" in navigator) {
-    window.addEventListener("load", function () {
-        navigator.serviceWorker.register("./sw.js")
-            .then(function () {
-                console.log("Service Worker registered");
-            })
-            .catch(function (error) {
-                console.error("Service Worker registration failed:", error);
-            });
-    });
-}
+<!-- JAVASCRIPT -->
+<script type="module">
+    import "./firebase-config.js";
+</script>
+
+<script src="./script.js"></script>
+
+<script>
+    if ("serviceWorker" in navigator) {
+        window.addEventListener("load", function () {
+            navigator.serviceWorker.register("./sw.js")
+                .then(function () {
+                    console.log("Service Worker registered");
+                })
+                .catch(function (error) {
+                    console.error("Service Worker registration failed:", error);
+                });
+        });
+    }
 </script>
 
 </body>
-
 </html>
-

@@ -1,3 +1,7 @@
+import { app } from "./firebase-config.js";
+
+console.log("Firebase app connected:", app);
+
 const state = {
     transactions: [],
     currentType: "expense",
