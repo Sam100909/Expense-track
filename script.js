@@ -39,7 +39,9 @@ const state = {
     currency: "MYR",
     currentUser: null,
     unsubscribeTransactions: null,
-    guestMode: false
+    guestMode: false,
+    currentPage: "dashboard",
+    pageHistory: []
 };
 
 
@@ -82,6 +84,7 @@ document.addEventListener("DOMContentLoaded", function () {
     setupGuestLogin();
     setupIntro();
     setupNavigation();
+    setupMobileBackNavigation();
     setupTransactionModal();
     setupQuickActions();
     setupFilters();
@@ -925,7 +928,31 @@ function closeSidebarMenu() {
 }
 
 
-function showPage(pageName) {
+function showPage(pageName, recordHistory = true) {
+
+    const target =
+        document.getElementById(
+            pageName + "Page"
+        );
+
+
+    if (!target) {
+        console.warn("Unknown page:", pageName);
+        return;
+    }
+
+
+    if (
+        recordHistory &&
+        pageName !== state.currentPage
+    ) {
+        state.pageHistory.push(
+            state.currentPage
+        );
+    }
+
+
+    state.currentPage = pageName;
 
     document
         .querySelectorAll(".page")
@@ -937,20 +964,9 @@ function showPage(pageName) {
 
         });
 
-
-    const target =
-        document.getElementById(
-            pageName + "Page"
-        );
-
-
-    if (target) {
-
-        target.classList.add(
-            "active"
-        );
-
-    }
+    target.classList.add(
+        "active"
+    );
 
 
     document
@@ -969,6 +985,33 @@ function showPage(pageName) {
     closeSidebarMenu();
 
     updateAll();
+
+}
+
+
+function setupMobileBackNavigation() {
+
+    document
+        .querySelectorAll("[data-back]")
+        .forEach(function (button) {
+
+            button.addEventListener(
+                "click",
+                function () {
+
+                    const previousPage =
+                        state.pageHistory.pop() ||
+                        "dashboard";
+
+                    showPage(
+                        previousPage,
+                        false
+                    );
+
+                }
+            );
+
+        });
 
 }
 
@@ -1106,10 +1149,25 @@ function setupTransactionModal() {
             "transactionForm"
         );
 
+    const mobileBackButton =
+        document.getElementById(
+            "mobileTransactionBack"
+        );
+
 
     if (closeButton) {
 
         closeButton.addEventListener(
+            "click",
+            closeTransactionModal
+        );
+
+    }
+
+
+    if (mobileBackButton) {
+
+        mobileBackButton.addEventListener(
             "click",
             closeTransactionModal
         );
@@ -1843,7 +1901,8 @@ function renderAllTransactions() {
 
                     const transactionDate =
                         new Date(
-                            transaction.date
+                            transaction.date +
+                            "T00:00:00"
                         );
 
                     const today =
@@ -2753,6 +2812,21 @@ function loadLocalSettings() {
 ========================================================= */
 
 function applyTheme(theme) {
+
+    const useDarkTheme =
+        theme === "dark" ||
+        (
+            theme === "system" &&
+            window.matchMedia(
+                "(prefers-color-scheme: dark)"
+            ).matches
+        );
+
+
+    document.body.classList.toggle(
+        "dark",
+        useDarkTheme
+    );
 
     if (
         theme === "dark"

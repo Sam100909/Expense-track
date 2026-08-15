@@ -858,6 +858,11 @@ a {
     display: block;
 }
 
+.mobile-page-back,
+.mobile-modal-back {
+    display: none;
+}
+
 @keyframes pageAppear {
 
     from {
@@ -2183,6 +2188,28 @@ body.dark .empty-state {
    ========================================================= */
 
 @media (max-width: 760px) {
+
+    .mobile-page-back,
+    .mobile-modal-back {
+        display: inline-flex;
+        align-items: center;
+        gap: 7px;
+        min-height: 38px;
+        margin: 0 0 14px;
+        padding: 0 4px;
+        border: 0;
+        background: transparent;
+        color: var(--primary);
+        font-weight: 700;
+    }
+
+    .mobile-modal-back {
+        margin: 0;
+    }
+
+    .modal-header {
+        align-items: flex-start;
+    }
 
     .mobile-only {
         display: flex;

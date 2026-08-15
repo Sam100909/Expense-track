@@ -101,6 +101,15 @@
 
                 </div>
 
+                <button
+                    id="closeSidebarButton"
+                    class="icon-button mobile-only"
+                    type="button"
+                    aria-label="Close navigation"
+                >
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+
             </div>
 
 
@@ -167,6 +176,8 @@
 
         </aside>
 
+        <div id="sidebarOverlay" class="sidebar-overlay hidden"></div>
+
 
         <!-- MAIN -->
         <main class="main-content">
@@ -175,6 +186,15 @@
             <header class="topbar">
 
                 <div class="topbar-left">
+
+                    <button
+                        id="openSidebarButton"
+                        class="icon-button mobile-only"
+                        type="button"
+                        aria-label="Open navigation"
+                    >
+                        <i class="fa-solid fa-bars"></i>
+                    </button>
 
                     <div>
 
@@ -231,6 +251,15 @@
                             </h1>
 
                         </div>
+
+                        <button
+                            id="toggleBalanceButton"
+                            class="balance-eye-button"
+                            type="button"
+                            aria-label="Show or hide balance"
+                        >
+                            <i id="balanceEyeIcon" class="fa-regular fa-eye"></i>
+                        </button>
 
                     </div>
 
@@ -325,6 +354,7 @@
                         <button
                             class="quick-action"
                             id="addExpenseButton"
+                            data-type="expense"
                             type="button"
                         >
                             <div class="action-icon">
@@ -340,6 +370,7 @@
                         <button
                             class="quick-action"
                             id="addIncomeButton"
+                            data-type="income"
                             type="button"
                         >
                             <div class="action-icon">
@@ -451,6 +482,10 @@
                 id="transactionsPage"
                 class="page"
             >
+                <button class="mobile-page-back" type="button" data-back>
+                    <i class="fa-solid fa-arrow-left"></i>
+                    Back
+                </button>
 
                 <div class="page-header">
 
@@ -481,6 +516,27 @@
 
                 </div>
 
+                <div class="filter-bar">
+                    <label class="search-box" for="searchInput">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                        <input id="searchInput" type="search" placeholder="Search transactions">
+                    </label>
+                    <select id="typeFilter" class="select-input" aria-label="Filter by type">
+                        <option value="all">All types</option>
+                        <option value="income">Income</option>
+                        <option value="expense">Expense</option>
+                    </select>
+                    <select id="categoryFilter" class="select-input" aria-label="Filter by category">
+                        <option value="all">All categories</option>
+                    </select>
+                    <select id="dateFilter" class="select-input" aria-label="Filter by date">
+                        <option value="all">All time</option>
+                        <option value="today">Today</option>
+                        <option value="week">Last 7 days</option>
+                        <option value="month">This month</option>
+                    </select>
+                </div>
+
 
                 <div
                     id="allTransactions"
@@ -509,6 +565,10 @@
                 id="analyticsPage"
                 class="page"
             >
+                <button class="mobile-page-back" type="button" data-back>
+                    <i class="fa-solid fa-arrow-left"></i>
+                    Back
+                </button>
 
                 <div class="page-header">
 
@@ -594,6 +654,10 @@
                 id="settingsPage"
                 class="page"
             >
+                <button class="mobile-page-back" type="button" data-back>
+                    <i class="fa-solid fa-arrow-left"></i>
+                    Back
+                </button>
 
                 <div class="page-header">
 
@@ -660,6 +724,41 @@
 
                 </div>
 
+                <div class="settings-section">
+                    <h3>Preferences</h3>
+                    <div class="settings-card vertical-card">
+                        <div class="setting-row">
+                            <div><strong>Currency</strong><span>Used for all transaction totals</span></div>
+                            <select id="currencySelect" class="select-input" aria-label="Currency">
+                                <option value="MYR">MYR (RM)</option><option value="USD">USD ($)</option><option value="SGD">SGD (S$)</option><option value="CNY">CNY (¥)</option><option value="EUR">EUR (€)</option><option value="GBP">GBP (£)</option><option value="JPY">JPY (¥)</option><option value="AUD">AUD (A$)</option>
+                            </select>
+                        </div>
+                        <div class="divider"></div>
+                        <div class="setting-row">
+                            <div><strong>Theme</strong><span>Choose how the app looks</span></div>
+                            <div class="segmented-control" aria-label="Theme">
+                                <button class="segment active" type="button" data-theme="light">Light</button>
+                                <button class="segment" type="button" data-theme="dark">Dark</button>
+                                <button class="segment" type="button" data-theme="system">System</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-section">
+                    <h3>Appearance</h3>
+                    <div class="settings-card vertical-card">
+                        <div class="setting-row">
+                            <div><strong>Accent colors</strong><span>Personalize the dashboard gradient</span></div>
+                            <div>
+                                <input id="primaryColor" class="color-picker" type="color" value="#7C5CFC" aria-label="Primary accent color">
+                                <input id="secondaryColor" class="color-picker" type="color" value="#5CC8FF" aria-label="Secondary accent color">
+                            </div>
+                        </div>
+                        <button id="generateThemeButton" class="secondary-button" type="button"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate colors</button>
+                    </div>
+                </div>
+
             </section>
 
         </main>
@@ -676,6 +775,15 @@
         <div class="modal-card">
 
             <div class="modal-header">
+
+                <button
+                    id="mobileTransactionBack"
+                    class="mobile-modal-back"
+                    type="button"
+                >
+                    <i class="fa-solid fa-arrow-left"></i>
+                    Back
+                </button>
 
                 <div>
 
