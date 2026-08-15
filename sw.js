@@ -1,4 +1,6 @@
-const CACHE_NAME = "spendly-v2";
+// Bump this value whenever app-shell files change. The cache-first fetch
+// strategy otherwise continues serving an older HTML/JavaScript bundle.
+const CACHE_NAME = "spendly-v3";
 
 const FILES_TO_CACHE = [
 "./",
