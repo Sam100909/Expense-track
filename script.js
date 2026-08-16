@@ -756,15 +756,6 @@ async function saveTransaction() {
 
 async function deleteTransaction(id) {
 
-    const confirmed =
-        confirm(
-            "Delete this transaction?"
-        );
-
-    if (!confirmed) {
-        return;
-    }
-
     const viewDelete =
         document.getElementById("deleteTransactionButton");
 
