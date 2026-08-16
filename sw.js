@@ -1,6 +1,6 @@
 // Bump this value whenever app-shell files change. The cache-first fetch
 // strategy otherwise continues serving an older HTML/JavaScript bundle.
-const CACHE_NAME = "spendly-v3";
+const CACHE_NAME = "spendly-v4";
 
 const FILES_TO_CACHE = [
 "./",
@@ -9,7 +9,7 @@ const FILES_TO_CACHE = [
 "./script.js",
 "./firebase-config.js",
 "./manifest.json",
-"./icon-512.png",
+"./icons/app-icon.png",
 "./favicon.svg"
 ];
 
