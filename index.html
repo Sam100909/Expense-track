@@ -963,6 +963,37 @@
     </div>
 
 
+    <!-- VIEW TRANSACTION MODAL -->
+    <div id="transactionViewModal" class="modal hidden">
+        <div class="modal-card view-transaction-card">
+            <div class="modal-header">
+                <div>
+                    <span class="eyebrow">TRANSACTION</span>
+                    <h2>View transaction</h2>
+                </div>
+                <div class="view-transaction-actions">
+                    <button id="editTransactionButton" class="icon-button transaction-action" type="button" aria-label="Edit transaction" title="Edit transaction">
+                        <i class="fa-solid fa-pen"></i>
+                    </button>
+                    <button id="deleteTransactionButton" class="icon-button transaction-action transaction-delete" type="button" aria-label="Delete transaction" title="Delete transaction">
+                        <i class="fa-solid fa-trash"></i>
+                    </button>
+                    <button id="closeTransactionView" class="icon-button" type="button" aria-label="Close transaction details">
+                        <i class="fa-solid fa-xmark"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="view-transaction-details">
+                <div><span>Type</span><strong id="viewTransactionType"></strong></div>
+                <div><span>Amount</span><strong id="viewTransactionAmount"></strong></div>
+                <div><span>Category</span><strong id="viewTransactionCategory"></strong></div>
+                <div><span>Date</span><strong id="viewTransactionDate"></strong></div>
+                <div><span>Note</span><strong id="viewTransactionNote"></strong></div>
+            </div>
+        </div>
+    </div>
+
+
 <!-- JAVASCRIPT -->
 
 <script type="module" src="./script.js"></script>

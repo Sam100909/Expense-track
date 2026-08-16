@@ -12,6 +12,7 @@ import {
     collection,
     addDoc,
     deleteDoc,
+    updateDoc,
     doc,
     query,
     orderBy,
@@ -41,7 +42,8 @@ const state = {
     unsubscribeTransactions: null,
     guestMode: false,
     currentPage: "dashboard",
-    pageHistory: []
+    activeModal: null,
+    editingTransactionId: null
 };
 
 
@@ -86,6 +88,8 @@ document.addEventListener("DOMContentLoaded", function () {
     setupNavigation();
     setupMobileBackNavigation();
     setupTransactionModal();
+    setupTransactionView();
+    setupHistoryNavigation();
     setupQuickActions();
     setupFilters();
     setupSettings();
@@ -603,6 +607,67 @@ async function saveTransaction() {
 
     }
 
+    const transactionData = {
+        type: state.currentType,
+        amount: amount,
+        category: category,
+        date: date,
+        note: note
+    };
+
+    if (state.editingTransactionId) {
+
+        const id = state.editingTransactionId;
+
+        if (state.guestMode) {
+
+            state.transactions = state.transactions.map(
+                function (transaction) {
+                    return transaction.id === id
+                        ? { ...transaction, ...transactionData }
+                        : transaction;
+                }
+            );
+
+            closeTransactionModal();
+            updateAll();
+            showToast("Transaction updated");
+            return;
+
+        }
+
+        if (!state.currentUser) {
+            showToast("Please login first", true);
+            return;
+        }
+
+        try {
+
+            await updateDoc(
+                doc(
+                    db,
+                    "users",
+                    state.currentUser.uid,
+                    "transactions",
+                    id
+                ),
+                transactionData
+            );
+
+            closeTransactionModal();
+            showToast("Transaction updated");
+
+        } catch (error) {
+
+            console.error("Failed to update transaction:", error);
+            showToast("Failed to update transaction", true);
+
+        }
+
+        return;
+
+    }
+
 
     if (!state.currentUser) {
 
@@ -611,16 +676,7 @@ async function saveTransaction() {
             const transaction = {
                 id:
                     Date.now().toString(),
-                type:
-                    state.currentType,
-                amount:
-                    amount,
-                category:
-                    category,
-                date:
-                    date,
-                note:
-                    note
+                ...transactionData
             };
 
             state.transactions.unshift(
@@ -662,16 +718,7 @@ async function saveTransaction() {
         await addDoc(
             transactionsRef,
             {
-                type:
-                    state.currentType,
-                amount:
-                    amount,
-                category:
-                    category,
-                date:
-                    date,
-                note:
-                    note,
+                ...transactionData,
                 createdAt:
                     serverTimestamp()
             }
@@ -716,6 +763,13 @@ async function deleteTransaction(id) {
 
     if (!confirmed) {
         return;
+    }
+
+    const viewDelete =
+        document.getElementById("deleteTransactionButton");
+
+    if (viewDelete && viewDelete.dataset.transactionId === id) {
+        closeTransactionView();
     }
 
 
@@ -928,7 +982,49 @@ function closeSidebarMenu() {
 }
 
 
-function showPage(pageName, recordHistory = true) {
+function createHistoryState(page, modal = null, transactionId = null) {
+
+    return {
+        expenseTracker: true,
+        page: page,
+        modal: modal,
+        transactionId: transactionId
+    };
+
+}
+
+
+function setupHistoryNavigation() {
+
+    const current = history.state;
+
+    if (!current || !current.expenseTracker) {
+        history.replaceState(
+            createHistoryState("dashboard"),
+            "",
+            window.location.href
+        );
+    }
+
+    window.addEventListener("popstate", function (event) {
+
+        const entry = event.state;
+
+        // A null/external entry means the browser is leaving this app. Do not
+        // push another entry or trap the device/browser Back action.
+        if (!entry || !entry.expenseTracker) {
+            return;
+        }
+
+        showPage(entry.page || "dashboard", "none");
+        restoreModalFromHistory(entry);
+
+    });
+
+}
+
+
+function showPage(pageName, historyMode = "push") {
 
     const target =
         document.getElementById(
@@ -942,12 +1038,15 @@ function showPage(pageName, recordHistory = true) {
     }
 
 
-    if (
-        recordHistory &&
-        pageName !== state.currentPage
-    ) {
-        state.pageHistory.push(
-            state.currentPage
+    if (pageName === state.currentPage) {
+        return;
+    }
+
+    if (historyMode === "push") {
+        history.pushState(
+            createHistoryState(pageName),
+            "",
+            window.location.href
         );
     }
 
@@ -999,14 +1098,9 @@ function setupMobileBackNavigation() {
                 "click",
                 function () {
 
-                    const previousPage =
-                        state.pageHistory.pop() ||
-                        "dashboard";
-
-                    showPage(
-                        previousPage,
-                        false
-                    );
+                    if (state.currentPage !== "dashboard") {
+                        history.back();
+                    }
 
                 }
             );
@@ -1231,7 +1325,24 @@ function setupTransactionModal() {
 }
 
 
-function openTransactionModal(type) {
+function openTransactionModal(type, transaction = null) {
+
+    history.pushState(
+        createHistoryState(
+            state.currentPage,
+            "transaction",
+            transaction ? transaction.id : null
+        ),
+        "",
+        window.location.href
+    );
+
+    displayTransactionModal(type, transaction);
+
+}
+
+
+function displayTransactionModal(type, transaction = null) {
 
     const modal =
         document.getElementById(
@@ -1244,9 +1355,9 @@ function openTransactionModal(type) {
     }
 
 
-    setTransactionType(
-        type || "expense"
-    );
+    state.editingTransactionId = transaction ? transaction.id : null;
+
+    setTransactionType(type || "expense");
 
 
     const amount =
@@ -1264,18 +1375,31 @@ function openTransactionModal(type) {
             "dateInput"
         );
 
+    const category =
+        document.getElementById(
+            "categoryInput"
+        );
+
 
     if (amount) {
-        amount.value = "";
+        amount.value = transaction ? transaction.amount : "";
     }
 
 
     if (note) {
-        note.value = "";
+        note.value = transaction ? (transaction.note || "") : "";
+    }
+
+    if (category) {
+        category.value = transaction ? transaction.category : "";
     }
 
 
-    if (date) {
+    if (date && transaction) {
+
+        date.value = transaction.date || "";
+
+    } else if (date) {
 
         const today =
             new Date();
@@ -1310,9 +1434,22 @@ function openTransactionModal(type) {
     }
 
 
-    modal.classList.remove(
-        "hidden"
-    );
+    const title = modal.querySelector("h2");
+    const submitButton = modal.querySelector("button[type='submit']");
+
+    if (title) {
+        title.textContent = transaction ? "Edit transaction" : "Add transaction";
+    }
+
+    if (submitButton) {
+        submitButton.innerHTML = transaction
+            ? '<i class="fa-solid fa-check"></i> Save changes'
+            : '<i class="fa-solid fa-check"></i> Save transaction';
+    }
+
+    document.getElementById("transactionViewModal")?.classList.add("hidden");
+    modal.classList.remove("hidden");
+    state.activeModal = "transaction";
 
 
     setTimeout(
@@ -1331,6 +1468,18 @@ function openTransactionModal(type) {
 
 function closeTransactionModal() {
 
+    if (state.activeModal === "transaction" && history.state?.expenseTracker && history.state.modal === "transaction") {
+        history.back();
+        return;
+    }
+
+    hideTransactionModal();
+
+}
+
+
+function hideTransactionModal() {
+
     const modal =
         document.getElementById(
             "transactionModal"
@@ -1343,6 +1492,137 @@ function closeTransactionModal() {
             "hidden"
         );
 
+    }
+
+    state.activeModal = null;
+    state.editingTransactionId = null;
+
+}
+
+
+function restoreModalFromHistory(entry) {
+
+    if (entry.modal === "transaction") {
+        const transaction = entry.transactionId
+            ? state.transactions.find(function (item) { return item.id === entry.transactionId; })
+            : null;
+
+        displayTransactionModal(transaction ? transaction.type : state.currentType, transaction);
+        return;
+    }
+
+    if (entry.modal === "view") {
+        const transaction = state.transactions.find(function (item) {
+            return item.id === entry.transactionId;
+        });
+
+        if (transaction) {
+            displayTransactionView(transaction);
+            return;
+        }
+    }
+
+    hideTransactionModal();
+    hideTransactionView();
+
+}
+
+
+function setupTransactionView() {
+
+    const modal = document.getElementById("transactionViewModal");
+    const closeButton = document.getElementById("closeTransactionView");
+    const editButton = document.getElementById("editTransactionButton");
+    const deleteButton = document.getElementById("deleteTransactionButton");
+
+    closeButton?.addEventListener("click", closeTransactionView);
+
+    modal?.addEventListener("click", function (event) {
+        if (event.target === modal) {
+            closeTransactionView();
+        }
+    });
+
+    editButton?.addEventListener("click", function () {
+        const transaction = state.transactions.find(function (item) {
+            return item.id === editButton.dataset.transactionId;
+        });
+
+        if (transaction) {
+            openTransactionModal(transaction.type, transaction);
+        }
+    });
+
+    deleteButton?.addEventListener("click", function () {
+        if (deleteButton.dataset.transactionId) {
+            deleteTransaction(deleteButton.dataset.transactionId);
+        }
+    });
+
+}
+
+
+function openTransactionView(transaction) {
+
+    history.pushState(
+        createHistoryState(state.currentPage, "view", transaction.id),
+        "",
+        window.location.href
+    );
+
+    displayTransactionView(transaction);
+
+}
+
+
+function displayTransactionView(transaction) {
+
+    const modal = document.getElementById("transactionViewModal");
+    if (!modal) {
+        return;
+    }
+
+    const sign = transaction.type === "income" ? "+" : "-";
+    const amountClass = transaction.type === "income" ? "income" : "expense";
+
+    document.getElementById("viewTransactionType").textContent =
+        transaction.type === "income" ? "Income" : "Expense";
+    document.getElementById("viewTransactionAmount").textContent =
+        sign + formatCurrency(transaction.amount);
+    document.getElementById("viewTransactionAmount").className =
+        "view-transaction-amount " + amountClass;
+    document.getElementById("viewTransactionCategory").textContent = transaction.category || "—";
+    document.getElementById("viewTransactionDate").textContent = transaction.date || "—";
+    document.getElementById("viewTransactionNote").textContent = transaction.note || "—";
+    document.getElementById("editTransactionButton").dataset.transactionId = transaction.id;
+    document.getElementById("deleteTransactionButton").dataset.transactionId = transaction.id;
+
+    document.getElementById("transactionModal")?.classList.add("hidden");
+    modal.classList.remove("hidden");
+    state.activeModal = "view";
+    state.editingTransactionId = null;
+
+}
+
+
+function closeTransactionView() {
+
+    if (state.activeModal === "view" && history.state?.expenseTracker && history.state.modal === "view") {
+        history.back();
+        return;
+    }
+
+    hideTransactionView();
+
+}
+
+
+function hideTransactionView() {
+
+    document.getElementById("transactionViewModal")?.classList.add("hidden");
+
+    if (state.activeModal === "view") {
+        state.activeModal = null;
     }
 
 }
@@ -1786,6 +2066,10 @@ function createTransactionElement(
         </div>
     `;
 
+    item.addEventListener("click", function () {
+        openTransactionView(transaction);
+    });
+
 
     return item;
 
@@ -2014,10 +2298,17 @@ function renderAllTransactions() {
             deleteButton.innerHTML =
                 '<i class="fa-solid fa-trash"></i>';
 
+            deleteButton.setAttribute(
+                "aria-label",
+                "Delete transaction"
+            );
+
 
             deleteButton.addEventListener(
                 "click",
-                function () {
+                function (event) {
+
+                    event.stopPropagation();
 
                     deleteTransaction(
                         transaction.id
@@ -2875,6 +3166,19 @@ function updateAll() {
     renderAllTransactions();
 
     updateCategoryOptions();
+
+    const viewModal = document.getElementById("transactionViewModal");
+    const viewedId = document.getElementById("editTransactionButton")?.dataset.transactionId;
+
+    if (viewModal && !viewModal.classList.contains("hidden") && viewedId) {
+        const transaction = state.transactions.find(function (item) {
+            return item.id === viewedId;
+        });
+
+        if (transaction) {
+            displayTransactionView(transaction);
+        }
+    }
 
     updateGreeting();
 

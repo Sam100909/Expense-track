@@ -1298,6 +1298,61 @@ a {
     background: rgba(255, 69, 58, 0.08);
 }
 
+.view-transaction-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.transaction-action {
+    width: 36px;
+    height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.view-transaction-actions .transaction-delete {
+    opacity: 1;
+}
+
+.view-transaction-details {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.view-transaction-details > div {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--border);
+}
+
+.view-transaction-details > div:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+}
+
+.view-transaction-details span {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.view-transaction-details strong {
+    text-align: right;
+    overflow-wrap: anywhere;
+}
+
+.view-transaction-amount.income {
+    color: var(--success);
+}
+
+.view-transaction-amount.expense {
+    color: var(--danger);
+}
+
 
 /* =========================================================
    19. EMPTY STATE
@@ -2429,6 +2484,11 @@ body.dark .empty-state {
 
     .transaction-delete {
         opacity: 1;
+    }
+
+    .transaction-action {
+        width: 42px;
+        height: 42px;
     }
 
     .analytics-grid {
