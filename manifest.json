@@ -9,11 +9,11 @@
   "theme_color": "#7C5CFC",
   "orientation": "portrait",
   "icons": [
-    {
-      "src": "./icons/.app-icon.png",
-"sizes": "1024x1024",
-"type": "image/png",
-      "purpose": "any"
-    }
-  ]
+  {
+    "src": "./icons/.app-icon.png",
+    "sizes": "1024x1024",
+    "type": "image/png",
+    "purpose": "any"
+  }
+]
 }
