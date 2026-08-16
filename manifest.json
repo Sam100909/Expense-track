@@ -1,19 +1,19 @@
 {
-"id": "./index.html",
-"name": "Expense Tracker",
-"short_name": "Expenses",
-"description": "A simple and modern personal expense tracker.",
-"start_url": "./index.html",
-"display": "standalone",
-"background_color": "#ffffff",
-"theme_color": "#7C5CFC",
-"orientation": "portrait",
-"icons": [
-{
-"src": "./icon-512.png",
-"sizes": "512x512",
-"type": "image/png",
-"purpose": "any"
-}
-]
+  "id": "./index.html",
+  "name": "Expense Tracker",
+  "short_name": "Expenses",
+  "description": "A simple and modern personal expense tracker.",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#7C5CFC",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icons/app-icon.jpg",
+      "sizes": "1024x1024",
+      "type": "image/jpeg",
+      "purpose": "any"
+    }
+  ]
 }
