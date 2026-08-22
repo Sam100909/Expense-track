@@ -222,6 +222,8 @@
 
                 <div class="topbar-actions">
 
+                    <span id="syncStatus" class="sync-status" role="status">Synced</span>
+
                     <div class="month-selector" aria-label="Selected month">
                         <button id="previousMonthButton" class="month-arrow" type="button" aria-label="Previous month"><i class="fa-solid fa-chevron-left"></i></button>
                         <label class="month-label"><span id="selectedMonthLabel">Current month</span><input id="selectedMonthInput" type="month" aria-label="Choose month"></label>
@@ -1043,6 +1045,10 @@
     </div>
 
     <div id="guestImportModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="guestImportTitle"><div class="modal-card"><div class="modal-header"><div><span class="eyebrow">GUEST DATA</span><h2 id="guestImportTitle">Import guest data?</h2></div></div><p id="guestImportMessage">You have transactions saved on this device.</p><div class="modal-actions"><button id="skipGuestImportButton" class="secondary-button" type="button">Not now</button><button id="confirmGuestImportButton" class="primary-button" type="button">Import</button></div></div></div>
+
+    <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true">
+        <span id="toastMessage"></span>
+    </div>
 
 
 <!-- JAVASCRIPT -->

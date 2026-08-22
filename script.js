@@ -51,7 +51,10 @@ const state = {
     followingToday: true,
     currentBudget: null,
     unsubscribeBudget: null,
-    spendingChart: null
+    spendingChart: null,
+    syncStatus: navigator.onLine ? "synced" : "offline",
+    pendingUndo: null,
+    toastTimer: null
 };
 
 
@@ -798,25 +801,19 @@ async function deleteTransaction(id) {
     }
 
 
+    const transaction = state.transactions.find(function (item) { return item.id === id; });
+    if (!transaction) return;
+    state.transactions = state.transactions.filter(function (item) { return item.id !== id; });
+    updateAll();
     try {
-
-        await deleteDoc(
-            doc(
-                db,
-                "users",
-                state.currentUser.uid,
-                "transactions",
-                id
-            )
-        );
-
-        showToast(
-            "Transaction deleted"
-        );
+        setSyncStatus("saving");
+        await deleteDoc(doc(db, "users", state.currentUser.uid, "transactions", id));
+        setSyncStatus("synced");
+        showUndoToast(transaction);
 
     } catch (error) {
 
-        console.error(
+        state.transactions.unshift(transaction); updateAll(); setSyncStatus("failed"); console.error(
             "Delete failed:",
             error
         );
@@ -3251,8 +3248,12 @@ function showToast(
     }
 
 
-    messageElement.textContent =
-        message;
+    if (state.toastTimer) {
+        clearTimeout(state.toastTimer);
+        state.toastTimer = null;
+    }
+
+    messageElement.textContent = message;
 
 
     toast.classList.toggle(
@@ -3266,17 +3267,59 @@ function showToast(
     );
 
 
-    setTimeout(
+    state.toastTimer = setTimeout(
         function () {
 
             toast.classList.remove(
                 "show"
             );
 
+            state.toastTimer = null;
+
         },
         2500
     );
 
+}
+
+function setSyncStatus(status) {
+    const resolvedStatus = navigator.onLine ? status : "offline";
+    state.syncStatus = resolvedStatus;
+    const element = document.getElementById("syncStatus");
+    if (!element) return;
+    const labels = { saving: "Saving…", synced: "Synced", offline: "Offline", failed: "Sync failed" };
+    element.textContent = labels[resolvedStatus] || labels.synced;
+    element.className = "sync-status " + resolvedStatus;
+}
+
+function showUndoToast(transaction) {
+    if (state.pendingUndo?.timer) clearTimeout(state.pendingUndo.timer);
+    if (state.toastTimer) {
+        clearTimeout(state.toastTimer);
+        state.toastTimer = null;
+    }
+    const toast = document.getElementById("toast"), message = document.getElementById("toastMessage");
+    if (!toast || !message) return;
+    state.pendingUndo = { transaction };
+    message.innerHTML = "Transaction deleted · ";
+    const undo = document.createElement("button"); undo.type = "button"; undo.className = "toast-undo"; undo.textContent = "Undo";
+    undo.addEventListener("click", async function () {
+        const pending = state.pendingUndo; if (!pending || !state.currentUser) return;
+        undo.disabled = true; setSyncStatus("saving");
+        try {
+            const { id, ...data } = pending.transaction;
+            await setDoc(doc(db, "users", state.currentUser.uid, "transactions", id), data);
+            clearTimeout(pending.timer); state.pendingUndo = null; setSyncStatus("synced"); toast.classList.remove("show"); showToast("Transaction restored");
+        } catch (error) { console.error("Failed to restore transaction:", error); setSyncStatus("failed"); showToast("Failed to restore transaction", true); undo.disabled = false; }
+    });
+    message.appendChild(undo); toast.classList.remove("error"); toast.classList.add("show");
+    state.pendingUndo.timer = setTimeout(function () { if (state.pendingUndo?.transaction.id === transaction.id) { state.pendingUndo = null; toast.classList.remove("show"); } }, 5000);
+}
+
+function setupSyncStatus() {
+    setSyncStatus(navigator.onLine ? "synced" : "offline");
+    window.addEventListener("offline", function () { setSyncStatus("offline"); });
+    window.addEventListener("online", function () { setSyncStatus("synced"); });
 }
 
 
@@ -3672,7 +3715,7 @@ function loadLocalSettings() {
     document.querySelectorAll("[data-theme]").forEach(function (button) { button.classList.toggle("active", button.dataset.theme === appearance); });
 }
 
-document.addEventListener("DOMContentLoaded", function () { document.getElementById("dateFilter").value = "selected"; setupMonthSelector(); setupDaySelector(); scheduleSelectedDateMidnightCheck(); setupBudget(); setupGuestImport(); setupAppearancePersistence(); updateAll(); });
+document.addEventListener("DOMContentLoaded", function () { document.getElementById("dateFilter").value = "selected"; setupSyncStatus(); setupMonthSelector(); setupDaySelector(); scheduleSelectedDateMidnightCheck(); setupBudget(); setupGuestImport(); setupAppearancePersistence(); updateAll(); });
 onAuthStateChanged(auth, function (user) {
     if (!user) { if (state.unsubscribeBudget) { state.unsubscribeBudget(); state.unsubscribeBudget = null; } state.currentBudget = null; updateBudgetUI(); return; }
     loadBudget(); const guestItems = loadGuestTransactions();
