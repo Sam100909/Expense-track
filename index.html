@@ -144,6 +144,15 @@
 
                 <button
                     class="nav-item"
+                    data-page="budget"
+                    type="button"
+                >
+                    <i class="fa-solid fa-wallet"></i>
+                    <span>Budget</span>
+                </button>
+
+                <button
+                    class="nav-item"
                     data-page="settings"
                     type="button"
                 >
@@ -213,6 +222,13 @@
 
                 <div class="topbar-actions">
 
+                    <div class="month-selector" aria-label="Selected month">
+                        <button id="previousMonthButton" class="month-arrow" type="button" aria-label="Previous month"><i class="fa-solid fa-chevron-left"></i></button>
+                        <label class="month-label"><span id="selectedMonthLabel">Current month</span><input id="selectedMonthInput" type="month" aria-label="Choose month"></label>
+                        <button id="nextMonthButton" class="month-arrow" type="button" aria-label="Next month"><i class="fa-solid fa-chevron-right"></i></button>
+                        <button id="currentMonthButton" class="month-today" type="button" title="Current month">Today</button>
+                    </div>
+
                     <button
                         id="quickAddButton"
                         class="quick-add-button"
@@ -225,6 +241,12 @@
                 </div>
 
             </header>
+
+            <div class="day-selector" aria-label="Selected day">
+                <button id="previousDayButton" class="month-arrow" type="button" aria-label="Previous day"><i class="fa-solid fa-chevron-left"></i></button>
+                <label class="day-label"><span id="selectedDayLabel">Today</span><input id="selectedDayInput" type="date" aria-label="Choose day"></label>
+                <button id="nextDayButton" class="month-arrow" type="button" aria-label="Next day"><i class="fa-solid fa-chevron-right"></i></button>
+            </div>
 
 
             <!-- DASHBOARD -->
@@ -329,6 +351,13 @@
 
                 </div>
 
+
+                <section class="budget-card" aria-labelledby="budgetTitle">
+                    <div class="budget-heading"><div><span class="eyebrow">PLAN</span><h3 id="budgetTitle">Monthly Budget</h3></div><button id="setBudgetButton" class="secondary-button" type="button">Set Budget</button></div>
+                    <div id="budgetEmpty" class="budget-empty"><strong>No budget set</strong><span>Set a budget to track your spending.</span></div>
+                    <div id="budgetDetails" class="budget-details hidden"><div class="budget-amount"><strong id="budgetProgress">—</strong><span id="budgetUsage">0% used</span></div><div class="budget-progress"><span id="budgetProgressBar"></span></div><p id="budgetRemaining">—</p></div>
+                    <div id="categoryBudgetSection" class="category-budget-section hidden"><div class="category-budget-title"><span class="eyebrow">CATEGORY BUDGETS</span><span id="categoryBudgetHint"></span></div><div id="categoryBudgetList" class="category-budget-list"></div></div>
+                </section>
 
                 <div class="section">
 
@@ -530,6 +559,7 @@
                         <option value="all">All categories</option>
                     </select>
                     <select id="dateFilter" class="select-input" aria-label="Filter by date">
+                        <option value="selected">Selected month</option>
                         <option value="all">All time</option>
                         <option value="today">Today</option>
                         <option value="week">Last 7 days</option>
@@ -646,8 +676,22 @@
 
                 </div>
 
+                <section class="chart-card spending-card">
+                    <div class="section-header"><div><span class="eyebrow">BREAKDOWN</span><h3>Spending Breakdown</h3></div></div>
+                    <div id="spendingEmpty" class="empty-state compact-empty"><div class="empty-icon"><i class="fa-solid fa-chart-pie"></i></div><h4>No spending this month</h4><p>Add an expense to see its category breakdown.</p></div>
+                    <div id="spendingContent" class="spending-content hidden"><div class="doughnut-wrap"><canvas id="spendingChart" aria-label="Expense breakdown chart"></canvas><div class="doughnut-center"><strong id="chartTotal">—</strong><span>Total spent</span></div></div><div id="spendingLegend" class="spending-legend"></div></div>
+                    <div class="spending-summary"><div><span>Total Spent</span><strong id="totalSpentSummary">—</strong></div><div><span>Top Category</span><strong id="topCategorySummary">—</strong><small id="topCategoryAmount"></small></div><div><span>Transactions</span><strong id="expenseCountSummary">0</strong></div></div>
+                </section>
+
             </section>
 
+
+            <!-- SETTINGS -->
+            <section id="budgetPage" class="page">
+                <button class="mobile-page-back" type="button" data-back><i class="fa-solid fa-arrow-left"></i> Back</button>
+                <div class="page-header"><div><span class="eyebrow">PLAN</span><h1>Budget</h1><p id="budgetPageMonth"></p></div></div>
+                <div id="budgetPageContent"></div>
+            </section>
 
             <!-- SETTINGS -->
             <section
@@ -756,6 +800,7 @@
                             </div>
                         </div>
                         <button id="generateThemeButton" class="secondary-button" type="button"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate colors</button>
+                        <button id="saveAppearanceButton" class="primary-button" type="button">Save</button>
                     </div>
                 </div>
 
@@ -993,8 +1038,16 @@
         </div>
     </div>
 
+    <div id="budgetModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="budgetModalTitle">
+        <div class="modal-card budget-modal-card"><div class="modal-header"><div><span class="eyebrow">MONTHLY PLAN</span><h2 id="budgetModalTitle">Set Budget</h2><p id="budgetMonthName"></p></div><button id="closeBudgetModal" class="icon-button" type="button" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><form id="budgetForm"><div class="form-group"><label for="budgetAmountInput">Total Monthly Budget <span class="optional">(optional)</span></label><div class="amount-input"><span id="budgetCurrencyPrefix">RM</span><input id="budgetAmountInput" type="number" min="0.01" step="0.01"></div></div><div class="budget-category-form"><div class="budget-category-form-heading"><strong>Category Budgets</strong><span>Leave blank for no category budget</span></div><div id="budgetCategoryInputs" class="budget-category-inputs"></div><p id="categoryBudgetTotal" class="category-budget-total">Category budgets total: —</p></div><div class="modal-actions"><button id="cancelBudgetButton" class="secondary-button" type="button">Cancel</button><button class="primary-button" type="submit">Save Budget</button></div></form></div>
+    </div>
+
+    <div id="guestImportModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="guestImportTitle"><div class="modal-card"><div class="modal-header"><div><span class="eyebrow">GUEST DATA</span><h2 id="guestImportTitle">Import guest data?</h2></div></div><p id="guestImportMessage">You have transactions saved on this device.</p><div class="modal-actions"><button id="skipGuestImportButton" class="secondary-button" type="button">Not now</button><button id="confirmGuestImportButton" class="primary-button" type="button">Import</button></div></div></div>
+
 
 <!-- JAVASCRIPT -->
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
 <script type="module" src="./script.js"></script>
 

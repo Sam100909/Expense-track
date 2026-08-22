@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isValidTransaction() {
+      return request.resource.data.keys().hasAll(['type', 'amount', 'category', 'date'])
+        && request.resource.data.type in ['income', 'expense']
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
+        && request.resource.data.category is string
+        && request.resource.data.category.size() > 0
+        && request.resource.data.date is string
+        && request.resource.data.date.size() > 0;
+    }
+
+    function isValidBudget() {
+      return (!request.resource.data.keys().hasAny(['amount'])
+          || (request.resource.data.amount is number && request.resource.data.amount > 0))
+        && (!request.resource.data.keys().hasAny(['categories'])
+          || request.resource.data.categories is map);
+    }
+
+    match /users/{userId}/transactions/{transactionId} {
+      allow read, delete: if isOwner(userId);
+      // createdAt is deliberately optional so old documents remain editable.
+      allow create, update: if isOwner(userId) && isValidTransaction();
+    }
+
+    match /users/{userId}/budgets/{budgetId} {
+      allow read, delete: if isOwner(userId);
+      // amount is optional to support category-only budgets and legacy docs.
+      allow create, update: if isOwner(userId) && isValidBudget();
+    }
+  }
+}
