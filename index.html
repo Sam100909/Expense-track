@@ -8,6 +8,8 @@
 
     <title>Expense Tracker</title>
 
+    <style>html, body { background: #46474D; }</style>
+
     <link
         rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
@@ -15,31 +17,15 @@
 
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="./manifest.json">
+    <link rel="icon" href="./app-icon-512.png" type="image/png" sizes="512x512">
+    <link rel="apple-touch-icon" href="./app-icon-512.png" sizes="512x512">
 </head>
 
 <body>
 
     <!-- INTRO -->
-    <div id="introScreen" class="intro-screen">
-
-        <div class="intro-content">
-
-            <div class="intro-logo">
-                <i class="fa-solid fa-wallet"></i>
-            </div>
-
-            <h1>Expense Tracker</h1>
-
-            <p>Take control of your money.</p>
-
-            <div class="intro-loader">
-                <span></span>
-                <span></span>
-                <span></span>
-            </div>
-
-        </div>
-
+    <div id="introScreen" class="intro-screen" aria-hidden="true">
+        <img class="intro-logo" src="./app-icon.png" alt="">
     </div>
 
 
@@ -153,6 +139,15 @@
 
                 <button
                     class="nav-item"
+                    data-page="converter"
+                    type="button"
+                >
+                    <i class="fa-solid fa-arrow-right-arrow-left"></i>
+                    <span>Converter</span>
+                </button>
+
+                <button
+                    class="nav-item"
                     data-page="settings"
                     type="button"
                 >
@@ -196,15 +191,6 @@
 
                 <div class="topbar-left">
 
-                    <button
-                        id="openSidebarButton"
-                        class="icon-button mobile-only"
-                        type="button"
-                        aria-label="Open navigation"
-                    >
-                        <i class="fa-solid fa-bars"></i>
-                    </button>
-
                     <div>
 
                         <p id="greeting" class="greeting">
@@ -224,32 +210,11 @@
 
                     <span id="syncStatus" class="sync-status" role="status">Synced</span>
 
-                    <div class="month-selector" aria-label="Selected month">
-                        <button id="previousMonthButton" class="month-arrow" type="button" aria-label="Previous month"><i class="fa-solid fa-chevron-left"></i></button>
-                        <label class="month-label"><span id="selectedMonthLabel">Current month</span><input id="selectedMonthInput" type="month" aria-label="Choose month"></label>
-                        <button id="nextMonthButton" class="month-arrow" type="button" aria-label="Next month"><i class="fa-solid fa-chevron-right"></i></button>
-                        <button id="currentMonthButton" class="month-today" type="button" title="Current month">Today</button>
-                    </div>
-
-                    <button
-                        id="quickAddButton"
-                        class="quick-add-button"
-                        type="button"
-                    >
-                        <i class="fa-solid fa-plus"></i>
-                        <span>Quick Add</span>
-                    </button>
+                    <time id="dashboardTodayDate" class="dashboard-today-date" datetime="">Today</time>
 
                 </div>
 
             </header>
-
-            <div class="day-selector" aria-label="Selected day">
-                <button id="previousDayButton" class="month-arrow" type="button" aria-label="Previous day"><i class="fa-solid fa-chevron-left"></i></button>
-                <label class="day-label"><span id="selectedDayLabel">Today</span><input id="selectedDayInput" type="date" aria-label="Choose day"></label>
-                <button id="nextDayButton" class="month-arrow" type="button" aria-label="Next day"><i class="fa-solid fa-chevron-right"></i></button>
-            </div>
-
 
             <!-- DASHBOARD -->
             <section
@@ -302,56 +267,11 @@
                 </div>
 
 
-                <div class="summary-grid">
-
-                    <div class="summary-card">
-
-                        <div class="summary-icon income-icon">
-                            <i class="fa-solid fa-arrow-down"></i>
-                        </div>
-
-                        <div>
-
-                            <span class="card-label">
-                                Income
-                            </span>
-
-                            <strong
-                                id="incomeAmount"
-                                class="summary-amount"
-                            >
-                                RM 0.00
-                            </strong>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="summary-card">
-
-                        <div class="summary-icon expense-icon">
-                            <i class="fa-solid fa-arrow-up"></i>
-                        </div>
-
-                        <div>
-
-                            <span class="card-label">
-                                Expenses
-                            </span>
-
-                            <strong
-                                id="expenseAmount"
-                                class="summary-amount"
-                            >
-                                RM 0.00
-                            </strong>
-
-                        </div>
-
-                    </div>
-
-                </div>
+                <section class="chart-card spending-card dashboard-spending-card">
+                    <div class="section-header"><div><span class="eyebrow">THIS MONTH</span><h3>Expense Breakdown</h3></div></div>
+                    <div id="spendingEmpty" class="empty-state compact-empty"><div class="empty-icon"><i class="fa-solid fa-chart-pie"></i></div><h4>No expenses this month</h4><p>Add an expense to see your category breakdown.</p></div>
+                    <div id="spendingContent" class="spending-content hidden"><div class="doughnut-wrap"><canvas id="spendingChart" aria-label="Expense breakdown chart"></canvas><div class="doughnut-center"><span>Expenses</span><strong id="chartTotal">—</strong></div></div><div id="spendingLegend" class="spending-legend"></div></div>
+                </section>
 
 
                 <section class="budget-card" aria-labelledby="budgetTitle">
@@ -360,150 +280,6 @@
                     <div id="budgetDetails" class="budget-details hidden"><div class="budget-amount"><strong id="budgetProgress">—</strong><span id="budgetUsage">0% used</span></div><div class="budget-progress"><span id="budgetProgressBar"></span></div><p id="budgetRemaining">—</p></div>
                     <div id="categoryBudgetSection" class="category-budget-section hidden"><div class="category-budget-title"><span class="eyebrow">CATEGORY BUDGETS</span><span id="categoryBudgetHint"></span></div><div id="categoryBudgetList" class="category-budget-list"></div></div>
                 </section>
-
-                <div class="section">
-
-                    <div class="section-header">
-
-                        <div>
-
-                            <span class="eyebrow">
-                                ACTIONS
-                            </span>
-
-                            <h3>
-                                Quick Actions
-                            </h3>
-
-                        </div>
-
-                    </div>
-
-
-                    <div class="quick-actions-grid">
-
-                        <button
-                            class="quick-action"
-                            id="addExpenseButton"
-                            data-type="expense"
-                            type="button"
-                        >
-                            <div class="action-icon">
-                                <i class="fa-solid fa-arrow-up"></i>
-                            </div>
-
-                            <span>
-                                Add Expense
-                            </span>
-                        </button>
-
-
-                        <button
-                            class="quick-action"
-                            id="addIncomeButton"
-                            data-type="income"
-                            type="button"
-                        >
-                            <div class="action-icon">
-                                <i class="fa-solid fa-arrow-down"></i>
-                            </div>
-
-                            <span>
-                                Add Income
-                            </span>
-                        </button>
-
-
-                        <button
-                            class="quick-action"
-                            data-page="transactions"
-                            type="button"
-                        >
-                            <div class="action-icon">
-                                <i class="fa-solid fa-receipt"></i>
-                            </div>
-
-                            <span>
-                                View Transactions
-                            </span>
-                        </button>
-
-
-                        <button
-                            class="quick-action"
-                            data-page="analytics"
-                            type="button"
-                        >
-                            <div class="action-icon">
-                                <i class="fa-solid fa-chart-simple"></i>
-                            </div>
-
-                            <span>
-                                View Analytics
-                            </span>
-                        </button>
-
-                    </div>
-
-                </div>
-
-
-                <div class="section">
-
-                    <div class="section-header">
-
-                        <div>
-
-                            <span class="eyebrow">
-                                ACTIVITY
-                            </span>
-
-                            <h3>
-                                Recent Transactions
-                            </h3>
-
-                        </div>
-
-                    </div>
-
-
-                    <div
-                        id="recentTransactions"
-                        class="transactions-list"
-                    >
-
-                        <div
-                            id="emptyTransactions"
-                            class="empty-state"
-                        >
-
-                            <div class="empty-icon">
-                                <i class="fa-solid fa-receipt"></i>
-                            </div>
-
-                            <h4>
-                                No transactions yet
-                            </h4>
-
-                            <p>
-                                Add your first transaction
-                                to get started.
-                            </p>
-
-                            <button
-                                id="emptyAddButton"
-                                class="primary-button"
-                                type="button"
-                            >
-                                <i class="fa-solid fa-plus"></i>
-                                Add transaction
-                            </button>
-
-                        </div>
-
-                    </div>
-
-                </div>
 
             </section>
 
@@ -546,6 +322,32 @@
                     </button>
 
                 </div>
+
+                <section class="section recent-transactions-section" aria-labelledby="recentTransactionsTitle">
+                    <div class="section-header recent-transactions-header">
+                        <div>
+                            <span class="eyebrow">ACTIVITY</span>
+                            <h3 id="recentTransactionsTitle">Recent Transactions</h3>
+                        </div>
+
+                        <div id="transactionDateControls" class="transaction-context-controls" aria-label="Transaction date controls">
+                            <div class="month-selector" aria-label="Selected month">
+                                <button id="previousMonthButton" class="month-arrow" type="button" aria-label="Previous month"><i class="fa-solid fa-chevron-left"></i></button>
+                                <label class="month-label"><span id="selectedMonthLabel">Current month</span><input id="selectedMonthInput" type="month" aria-label="Choose month"></label>
+                                <button id="nextMonthButton" class="month-arrow" type="button" aria-label="Next month"><i class="fa-solid fa-chevron-right"></i></button>
+                                <button id="currentMonthButton" class="month-today" type="button" title="Current month">Today</button>
+                            </div>
+
+                            <div class="day-selector" aria-label="Selected day">
+                                <button id="previousDayButton" class="month-arrow" type="button" aria-label="Previous day"><i class="fa-solid fa-chevron-left"></i></button>
+                                <label class="day-label"><span id="selectedDayLabel">Today</span><input id="selectedDayInput" type="date" aria-label="Choose day"></label>
+                                <button id="nextDayButton" class="month-arrow" type="button" aria-label="Next day"><i class="fa-solid fa-chevron-right"></i></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="recentTransactions" class="transactions-list"></div>
+                </section>
 
                 <div class="filter-bar">
                     <label class="search-box" for="searchInput">
@@ -678,13 +480,46 @@
 
                 </div>
 
-                <section class="chart-card spending-card">
-                    <div class="section-header"><div><span class="eyebrow">BREAKDOWN</span><h3>Spending Breakdown</h3></div></div>
-                    <div id="spendingEmpty" class="empty-state compact-empty"><div class="empty-icon"><i class="fa-solid fa-chart-pie"></i></div><h4>No spending this month</h4><p>Add an expense to see its category breakdown.</p></div>
-                    <div id="spendingContent" class="spending-content hidden"><div class="doughnut-wrap"><canvas id="spendingChart" aria-label="Expense breakdown chart"></canvas><div class="doughnut-center"><strong id="chartTotal">—</strong><span>Total spent</span></div></div><div id="spendingLegend" class="spending-legend"></div></div>
-                    <div class="spending-summary"><div><span>Total Spent</span><strong id="totalSpentSummary">—</strong></div><div><span>Top Category</span><strong id="topCategorySummary">—</strong><small id="topCategoryAmount"></small></div><div><span>Transactions</span><strong id="expenseCountSummary">0</strong></div></div>
-                </section>
+            </section>
 
+
+            <section id="converterPage" class="page">
+                <button class="mobile-page-back" type="button" data-back><i class="fa-solid fa-arrow-left"></i> Back</button>
+                <div class="page-header"><div><span class="eyebrow">REFERENCE RATES</span><h1>Currency Converter</h1><p>Estimate your conversion with the latest available reference rate.</p></div></div>
+                <section class="converter-card" aria-labelledby="converterTitle">
+                    <div class="converter-heading"><div><span class="eyebrow">CONVERT</span><h3 id="converterTitle">Exchange estimate</h3></div><span id="converterStatus" class="converter-status" role="status">Ready</span></div>
+                    <label class="converter-amount-field"><span>Amount</span><input id="converterAmount" class="form-input" type="number" min="0" step="any" inputmode="decimal" value="1" aria-label="Amount to convert"></label>
+                    <input id="converterFrom" type="hidden" value="MYR">
+                    <input id="converterTo" type="hidden" value="USD">
+
+                    <div class="converter-currency-stack">
+                        <button id="converterFromCard" class="currency-selector-card" type="button" data-currency-target="from" aria-label="Choose source currency">
+                            <span class="currency-selector-label">From</span>
+                            <span class="currency-selector-main"><span id="converterFromFlag" class="currency-flag" aria-hidden="true">🇲🇾</span><span><strong id="converterFromCode">MYR</strong><small id="converterFromName">Malaysian Ringgit</small></span></span>
+                            <span id="converterFromSymbol" class="currency-symbol">RM</span>
+                        </button>
+
+                        <button id="swapCurrenciesButton" class="converter-swap" type="button" aria-label="Swap currencies" title="Swap currencies"><i class="fa-solid fa-arrow-right-arrow-left"></i></button>
+
+                        <button id="converterToCard" class="currency-selector-card" type="button" data-currency-target="to" aria-label="Choose target currency">
+                            <span class="currency-selector-label">To</span>
+                            <span class="currency-selector-main"><span id="converterToFlag" class="currency-flag" aria-hidden="true">🇺🇸</span><span><strong id="converterToCode">USD</strong><small id="converterToName">US Dollar</small></span></span>
+                            <span id="converterToSymbol" class="currency-symbol">$</span>
+                        </button>
+                    </div>
+
+                    <div class="converter-result"><span>Converted amount</span><strong id="converterResult">—</strong></div>
+                    <div class="converter-meta"><span id="converterRate">Reference rate: —</span><span id="converterUpdated">Last updated: —</span></div>
+                    <p class="converter-disclaimer">Reference rates only. Your bank, card provider, or transfer service may use a different rate.</p>
+
+                    <div id="currencyPicker" class="currency-picker hidden" role="dialog" aria-modal="true" aria-labelledby="currencyPickerTitle">
+                        <div class="currency-picker-panel">
+                            <div class="currency-picker-header"><h3 id="currencyPickerTitle">Choose currency</h3><button id="closeCurrencyPicker" class="icon-button" type="button" aria-label="Close currency picker"><i class="fa-solid fa-xmark"></i></button></div>
+                            <label class="currency-search" for="currencyPickerSearch"><i class="fa-solid fa-magnifying-glass"></i><input id="currencyPickerSearch" type="search" placeholder="Search currency" autocomplete="off"></label>
+                            <div id="currencyPickerList" class="currency-picker-list" role="listbox" aria-label="Currencies"></div>
+                        </div>
+                    </div>
+                </section>
             </section>
 
 
@@ -768,6 +603,25 @@
 
                     </div>
 
+                    <div class="settings-card vertical-card nickname-card">
+                    <div class="setting-row">
+                        <div><strong>Nickname</strong><span>Shown in your Dashboard greeting</span></div>
+                        <form id="nicknameForm" class="nickname-form">
+                            <input id="nicknameInput" class="form-input" type="text" maxlength="40" autocomplete="nickname" placeholder="Your nickname" aria-label="Nickname">
+                            <button id="saveNicknameButton" class="primary-button" type="submit">Save</button>
+                        </form>
+                    </div>
+                    </div>
+
+                </div>
+
+                <div class="settings-section settings-tools">
+                    <h3>Tools</h3>
+                    <div class="settings-card vertical-card">
+                        <button class="settings-tool" data-page="analytics" type="button"><span class="settings-tool-icon"><i class="fa-solid fa-chart-pie"></i></span><span><strong>Analytics</strong><small>Review your spending insights</small></span><i class="fa-solid fa-chevron-right"></i></button>
+                        <div class="divider"></div>
+                        <button class="settings-tool" data-page="converter" type="button"><span class="settings-tool-icon"><i class="fa-solid fa-arrow-right-arrow-left"></i></span><span><strong>Currency Converter</strong><small>Check reference exchange rates</small></span><i class="fa-solid fa-chevron-right"></i></button>
+                    </div>
                 </div>
 
                 <div class="settings-section">
@@ -809,6 +663,14 @@
             </section>
 
         </main>
+
+    <nav class="mobile-floating-nav" aria-label="Mobile navigation">
+        <button class="mobile-nav-item active" data-page="dashboard" type="button" aria-label="Home"><i class="fa-solid fa-house"></i><span>Home</span></button>
+        <button class="mobile-nav-item" data-page="transactions" type="button" aria-label="Transactions"><i class="fa-solid fa-receipt"></i><span>Transactions</span></button>
+        <button id="mobileAddButton" class="mobile-nav-add" type="button" aria-label="Add transaction"><i class="fa-solid fa-plus"></i></button>
+        <button class="mobile-nav-item" data-page="budget" type="button" aria-label="Budget"><i class="fa-solid fa-wallet"></i><span>Budget</span></button>
+        <button class="mobile-nav-item" data-page="settings" type="button" aria-label="Settings"><i class="fa-solid fa-gear"></i><span>Settings</span></button>
+    </nav>
 
     </div>
 
@@ -936,6 +798,10 @@
 
                         <option value="Transport">
                             Transport
+                        </option>
+
+                        <option value="Car Maintenance">
+                            Car Maintenance
                         </option>
 
                         <option value="Shopping">

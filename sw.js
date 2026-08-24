@@ -1,6 +1,6 @@
 // Bump this value whenever app-shell files change. The cache-first fetch
 // strategy otherwise continues serving an older HTML/JavaScript bundle.
-const CACHE_NAME = "expense-track-v13";
+const CACHE_NAME = "expense-track-v18";
 
 const FILES_TO_CACHE = [
 "./",
@@ -9,8 +9,11 @@ const FILES_TO_CACHE = [
 "./script.js",
 "./firebase-config.js",
 "./manifest.json",
-"./icons/app-icon.png",
-"./favicon.svg"
+"./app-icon.png",
+"./app-icon-512.png",
+"./app-icon-192.png",
+"./app-icon-maskable-512.png",
+"./app-icon-maskable-192.png"
 ];
 
 self.addEventListener("install", function (event) {

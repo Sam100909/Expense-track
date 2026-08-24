@@ -5,15 +5,33 @@
   "description": "A simple and modern personal expense tracker.",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#7C5CFC",
-  "theme_color": "#7C5CFC",
+  "background_color": "#46474D",
+  "theme_color": "#46474D",
   "orientation": "portrait",
   "icons": [
-  {
-    "src": "./icons/app-icon.png",
-    "sizes": "1024x1024",
-    "type": "image/png",
-    "purpose": "any"
-  }
-]
+    {
+      "src": "./app-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./app-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "./app-icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "./app-icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
 }

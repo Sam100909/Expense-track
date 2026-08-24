@@ -34,5 +34,14 @@ service cloud.firestore {
       // amount is optional to support category-only budgets and legacy docs.
       allow create, update: if isOwner(userId) && isValidBudget();
     }
+
+    match /users/{userId}/profile/{profileId} {
+      allow read: if isOwner(userId);
+      allow create, update: if isOwner(userId)
+        && request.resource.data.keys().hasOnly(['nickname', 'updatedAt'])
+        && request.resource.data.nickname is string
+        && request.resource.data.nickname.size() > 0
+        && request.resource.data.nickname.size() <= 40;
+    }
   }
 }

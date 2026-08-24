@@ -10,16 +10,17 @@ import {
 
 import {
     collection,
-    addDoc,
     deleteDoc,
     updateDoc,
     doc,
+    getDoc,
     query,
     orderBy,
     onSnapshot,
     serverTimestamp,
     setDoc,
-    deleteField
+    deleteField,
+    waitForPendingWrites
 } from "https://www.gstatic.com/firebasejs/12.17.1/firebase-firestore.js";
 
 
@@ -29,6 +30,10 @@ import {
 
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
+const SPLASH_MINIMUM_DURATION = 500;
+const SPLASH_FADE_DURATION = 320;
+let splashStartedAt = performance.now();
+let splashFallbackTimer = null;
 
 
 /* =========================================================
@@ -41,6 +46,7 @@ const state = {
     balanceVisible: true,
     currency: "MYR",
     currentUser: null,
+    nickname: "",
     unsubscribeTransactions: null,
     guestMode: false,
     currentPage: "dashboard",
@@ -53,6 +59,9 @@ const state = {
     unsubscribeBudget: null,
     spendingChart: null,
     syncStatus: navigator.onLine ? "synced" : "offline",
+    hasPendingWrites: false,
+    syncFailed: false,
+    pendingWriteCheck: 0,
     pendingUndo: null,
     toastTimer: null
 };
@@ -66,6 +75,7 @@ const categories = {
     expense: [
         "Food",
         "Transport",
+        "Car Maintenance",
         "Shopping",
         "Bills",
         "Entertainment",
@@ -123,12 +133,12 @@ onAuthStateChanged(auth, function (user) {
 
         state.currentUser = user;
         state.guestMode = false;
+        state.nickname = "";
 
         updateUserProfile(user);
+        loadNickname(user);
 
-        hideIntro();
-        hideLogin();
-        showApp();
+        completeStartup("app");
 
         loadFirestoreTransactions(user.uid);
 
@@ -139,6 +149,7 @@ onAuthStateChanged(auth, function (user) {
         if (!state.guestMode) {
 
             state.currentUser = null;
+            state.nickname = "";
             state.transactions = [];
 
             if (state.unsubscribeTransactions) {
@@ -147,6 +158,7 @@ onAuthStateChanged(auth, function (user) {
             }
 
             updateUserProfile(null);
+            completeStartup("login");
 
         }
 
@@ -199,9 +211,7 @@ function setupLogin() {
                 result.user
             );
 
-            hideIntro();
-            hideLogin();
-            showApp();
+            completeStartup("app");
 
             showToast(
                 "Welcome, " +
@@ -266,9 +276,7 @@ function setupGuestLogin() {
             state.currentUser = null;
             state.transactions = loadGuestTransactions();
 
-            hideIntro();
-            hideLogin();
-            showApp();
+            completeStartup("app");
 
             updateAll();
 
@@ -285,62 +293,10 @@ function setupGuestLogin() {
 ========================================================= */
 
 function setupIntro() {
-
-    const intro =
-        document.getElementById("introScreen");
-
-    const login =
-        document.getElementById("loginScreen");
-
-    const appScreen =
-        document.getElementById("app");
-
-    console.log(
-        "Intro screen:",
-        intro
-    );
-
-    if (!intro) {
-        return;
-    }
-
-    setTimeout(function () {
-
-        intro.classList.add("hidden");
-
-        if (state.currentUser) {
-
-            if (login) {
-                login.classList.add("hidden");
-            }
-
-            if (appScreen) {
-                appScreen.classList.remove("hidden");
-            }
-
-        } else if (state.guestMode) {
-
-            if (login) {
-                login.classList.add("hidden");
-            }
-
-            if (appScreen) {
-                appScreen.classList.remove("hidden");
-            }
-
-        } else {
-
-            if (login) {
-                login.classList.remove("hidden");
-            }
-
-            if (appScreen) {
-                appScreen.classList.add("hidden");
-            }
-
-        }
-
-    }, 1800);
+    splashStartedAt = performance.now();
+    splashFallbackTimer = setTimeout(function () {
+        completeStartup("login");
+    }, 650);
 
 }
 
@@ -350,14 +306,31 @@ function setupIntro() {
 ========================================================= */
 
 function hideIntro() {
-
     const intro =
         document.getElementById("introScreen");
+    if (!intro || intro.classList.contains("hidden") || intro.classList.contains("is-leaving")) return;
+    intro.classList.add("is-leaving");
+    const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : SPLASH_FADE_DURATION;
+    setTimeout(function () { intro.classList.add("hidden"); }, duration);
+}
 
-    if (intro) {
-        intro.classList.add("hidden");
+function completeStartup(destination) {
+    if (destination === "app") {
+        hideLogin();
+        showApp();
+    } else {
+        hideApp();
+        showLogin();
     }
 
+    const intro = document.getElementById("introScreen");
+    if (!intro || intro.classList.contains("hidden") || intro.classList.contains("is-leaving")) return;
+    if (splashFallbackTimer) {
+        clearTimeout(splashFallbackTimer);
+        splashFallbackTimer = null;
+    }
+    const remaining = Math.max(0, SPLASH_MINIMUM_DURATION - (performance.now() - splashStartedAt));
+    setTimeout(hideIntro, remaining);
 }
 
 
@@ -481,6 +454,7 @@ function loadFirestoreTransactions(userId) {
     state.unsubscribeTransactions =
         onSnapshot(
             transactionsRef,
+            { includeMetadataChanges: true },
             function (snapshot) {
 
                 state.transactions =
@@ -515,6 +489,7 @@ function loadFirestoreTransactions(userId) {
                         }
                     ).sort(sortTransactionsNewestFirst);
 
+                updatePendingWriteStatus(snapshot.metadata.hasPendingWrites);
                 updateAll();
 
             },
@@ -524,6 +499,9 @@ function loadFirestoreTransactions(userId) {
                     "Firestore error:",
                     error
                 );
+
+                state.syncFailed = true;
+                refreshSyncStatus();
 
                 showToast(
                     "Could not load transactions",
@@ -651,7 +629,7 @@ async function saveTransaction() {
 
         try {
 
-            await updateDoc(
+            const writePromise = updateDoc(
                 doc(
                     db,
                     "users",
@@ -662,6 +640,7 @@ async function saveTransaction() {
                 transactionData
             );
 
+            queueTransactionWrite(writePromise, "Failed to update transaction");
             closeTransactionModal();
             showToast("Transaction updated");
 
@@ -725,8 +704,9 @@ async function saveTransaction() {
             );
 
 
-        await addDoc(
-            transactionsRef,
+        const transactionRef = doc(transactionsRef);
+        const writePromise = setDoc(
+            transactionRef,
             {
                 ...transactionData,
                 createdAt:
@@ -734,7 +714,7 @@ async function saveTransaction() {
             }
         );
 
-
+        queueTransactionWrite(writePromise, "Failed to save transaction");
         closeTransactionModal();
 
         showToast(
@@ -806,14 +786,13 @@ async function deleteTransaction(id) {
     state.transactions = state.transactions.filter(function (item) { return item.id !== id; });
     updateAll();
     try {
-        setSyncStatus("saving");
-        await deleteDoc(doc(db, "users", state.currentUser.uid, "transactions", id));
-        setSyncStatus("synced");
+        const writePromise = deleteDoc(doc(db, "users", state.currentUser.uid, "transactions", id));
+        queueTransactionWrite(writePromise, "Failed to delete transaction");
         showUndoToast(transaction);
 
     } catch (error) {
 
-        state.transactions.unshift(transaction); updateAll(); setSyncStatus("failed"); console.error(
+        state.transactions.unshift(transaction); updateAll(); state.syncFailed = true; refreshSyncStatus(); console.error(
             "Delete failed:",
             error
         );
@@ -835,7 +814,7 @@ async function deleteTransaction(id) {
 function setupNavigation() {
 
     document
-        .querySelectorAll(".nav-item")
+        .querySelectorAll(".nav-item, .mobile-nav-item")
         .forEach(function (button) {
 
             button.addEventListener(
@@ -862,6 +841,9 @@ function setupNavigation() {
             if (
                 element.classList.contains(
                     "nav-item"
+                ) ||
+                element.classList.contains(
+                    "mobile-nav-item"
                 )
             ) {
                 return;
@@ -1049,6 +1031,7 @@ function showPage(pageName, historyMode = "push") {
 
 
     state.currentPage = pageName;
+    updateDashboardControlsVisibility();
 
     document
         .querySelectorAll(".page")
@@ -1066,7 +1049,7 @@ function showPage(pageName, historyMode = "push") {
 
 
     document
-        .querySelectorAll(".nav-item")
+        .querySelectorAll(".nav-item, .mobile-nav-item")
         .forEach(function (item) {
 
             item.classList.toggle(
@@ -1112,6 +1095,27 @@ function setupMobileBackNavigation() {
 ========================================================= */
 
 function setupQuickActions() {
+
+    const mobileAdd =
+        document.getElementById(
+            "mobileAddButton"
+        );
+
+
+    if (mobileAdd) {
+
+        mobileAdd.addEventListener(
+            "click",
+            function () {
+
+                openTransactionModal(
+                    "expense"
+                );
+
+            }
+        );
+
+    }
 
     const quickAdd =
         document.getElementById(
@@ -2021,7 +2025,9 @@ function createTransactionElement(
     const icon =
         transaction.type === "income"
             ? "fa-arrow-down"
-            : "fa-arrow-up";
+            : transaction.category === "Car Maintenance"
+                ? "fa-screwdriver-wrench"
+                : "fa-arrow-up";
 
 
     const sign =
@@ -2650,6 +2656,7 @@ function renderCategoryChart() {
 function setupSettings() {
 
     setupBalanceToggle();
+    setupNicknameSetting();
 
 
     document
@@ -2950,13 +2957,7 @@ function setupBalanceToggle() {
 
 function updateUserProfile(user) {
 
-    const name =
-        user
-            ? (
-                user.displayName ||
-                "User"
-            )
-            : "Guest";
+    const name = getUserDisplayName(user);
 
 
     const email =
@@ -3023,6 +3024,77 @@ function updateUserProfile(user) {
             email;
     }
 
+}
+
+
+function getUserDisplayName(user) {
+    if (!user) return "Guest";
+    return state.nickname || user.displayName || "User";
+}
+
+
+function normalizeNickname(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+
+function isValidNickname(value) {
+    return value.length > 0 && Array.from(value).length <= 40 && !/[\u0000-\u001F\u007F]/.test(value);
+}
+
+
+function updateNicknameInput() {
+    const input = document.getElementById("nicknameInput");
+    if (input) input.value = state.nickname;
+}
+
+
+async function loadNickname(user) {
+    if (!user) return;
+    try {
+        const snapshot = await getDoc(doc(db, "users", user.uid, "profile", "settings"));
+        const nickname = snapshot.exists() ? normalizeNickname(snapshot.data().nickname) : "";
+        state.nickname = isValidNickname(nickname) ? nickname : "";
+        updateUserProfile(user);
+        updateNicknameInput();
+    } catch (error) {
+        console.error("Failed to load nickname:", error);
+    }
+}
+
+
+function setupNicknameSetting() {
+    const form = document.getElementById("nicknameForm");
+    const input = document.getElementById("nicknameInput");
+    if (!form || !input) return;
+    form.addEventListener("submit", async function (event) {
+        event.preventDefault();
+        if (!state.currentUser || state.guestMode) return showToast("Sign in to save a nickname", true);
+        const nickname = normalizeNickname(input.value);
+        if (!isValidNickname(nickname)) return showToast("Use a nickname of 1–40 characters", true);
+        const button = document.getElementById("saveNicknameButton");
+        if (button) button.disabled = true;
+        try {
+            await setDoc(doc(db, "users", state.currentUser.uid, "profile", "settings"), { nickname: nickname, updatedAt: serverTimestamp() }, { merge: true });
+            state.nickname = nickname;
+            input.value = nickname;
+            updateUserProfile(state.currentUser);
+            showToast("Nickname saved");
+        } catch (error) {
+            console.error("Failed to save nickname:", error);
+            showToast("Failed to save nickname", true);
+        } finally {
+            if (button) button.disabled = false;
+        }
+    });
+}
+
+
+function updateDashboardControlsVisibility() {
+    const todayDate = document.getElementById("dashboardTodayDate");
+    const transactionControls = document.getElementById("transactionDateControls");
+    if (todayDate) todayDate.classList.toggle("hidden", state.currentPage !== "dashboard");
+    if (transactionControls) transactionControls.classList.toggle("hidden", state.currentPage !== "transactions");
 }
 
 
@@ -3283,13 +3355,65 @@ function showToast(
 }
 
 function setSyncStatus(status) {
-    const resolvedStatus = navigator.onLine ? status : "offline";
+    const resolvedStatus = !navigator.onLine ? "offline" : status;
     state.syncStatus = resolvedStatus;
     const element = document.getElementById("syncStatus");
     if (!element) return;
     const labels = { saving: "Saving…", synced: "Synced", offline: "Offline", failed: "Sync failed" };
     element.textContent = labels[resolvedStatus] || labels.synced;
     element.className = "sync-status " + resolvedStatus;
+}
+
+function refreshSyncStatus() {
+    if (!navigator.onLine) {
+        setSyncStatus("offline");
+        return;
+    }
+    if (state.syncFailed) {
+        setSyncStatus("failed");
+        return;
+    }
+    setSyncStatus(state.hasPendingWrites ? "saving" : "synced");
+}
+
+function waitForFirestoreCommit() {
+    if (!state.currentUser || state.guestMode) return;
+    const check = ++state.pendingWriteCheck;
+    waitForPendingWrites(db).then(function () {
+        if (check !== state.pendingWriteCheck) return;
+        state.hasPendingWrites = false;
+        state.syncFailed = false;
+        refreshSyncStatus();
+    }).catch(function (error) {
+        if (check !== state.pendingWriteCheck) return;
+        console.error("Pending Firestore writes were not confirmed:", error);
+        state.syncFailed = true;
+        refreshSyncStatus();
+    });
+}
+
+function updatePendingWriteStatus(hasPendingWrites) {
+    state.hasPendingWrites = Boolean(hasPendingWrites);
+    if (state.hasPendingWrites) {
+        state.syncFailed = false;
+        waitForFirestoreCommit();
+    }
+    refreshSyncStatus();
+}
+
+function queueTransactionWrite(writePromise, failureMessage) {
+    state.hasPendingWrites = true;
+    state.syncFailed = false;
+    refreshSyncStatus();
+    Promise.resolve(writePromise).then(function () {
+        waitForFirestoreCommit();
+    }).catch(function (error) {
+        console.error(failureMessage, error);
+        state.syncFailed = true;
+        state.hasPendingWrites = false;
+        refreshSyncStatus();
+        showToast(failureMessage, true);
+    });
 }
 
 function showUndoToast(transaction) {
@@ -3303,23 +3427,24 @@ function showUndoToast(transaction) {
     state.pendingUndo = { transaction };
     message.innerHTML = "Transaction deleted · ";
     const undo = document.createElement("button"); undo.type = "button"; undo.className = "toast-undo"; undo.textContent = "Undo";
-    undo.addEventListener("click", async function () {
+    undo.addEventListener("click", function () {
         const pending = state.pendingUndo; if (!pending || !state.currentUser) return;
-        undo.disabled = true; setSyncStatus("saving");
+        undo.disabled = true;
         try {
             const { id, ...data } = pending.transaction;
-            await setDoc(doc(db, "users", state.currentUser.uid, "transactions", id), data);
-            clearTimeout(pending.timer); state.pendingUndo = null; setSyncStatus("synced"); toast.classList.remove("show"); showToast("Transaction restored");
-        } catch (error) { console.error("Failed to restore transaction:", error); setSyncStatus("failed"); showToast("Failed to restore transaction", true); undo.disabled = false; }
+            const writePromise = setDoc(doc(db, "users", state.currentUser.uid, "transactions", id), data);
+            queueTransactionWrite(writePromise, "Failed to restore transaction");
+            clearTimeout(pending.timer); state.pendingUndo = null; toast.classList.remove("show"); showToast("Transaction restored");
+        } catch (error) { console.error("Failed to restore transaction:", error); state.syncFailed = true; refreshSyncStatus(); showToast("Failed to restore transaction", true); undo.disabled = false; }
     });
     message.appendChild(undo); toast.classList.remove("error"); toast.classList.add("show");
     state.pendingUndo.timer = setTimeout(function () { if (state.pendingUndo?.transaction.id === transaction.id) { state.pendingUndo = null; toast.classList.remove("show"); } }, 5000);
 }
 
 function setupSyncStatus() {
-    setSyncStatus(navigator.onLine ? "synced" : "offline");
-    window.addEventListener("offline", function () { setSyncStatus("offline"); });
-    window.addEventListener("online", function () { setSyncStatus("synced"); });
+    refreshSyncStatus();
+    window.addEventListener("offline", refreshSyncStatus);
+    window.addEventListener("online", function () { refreshSyncStatus(); if (state.hasPendingWrites) waitForFirestoreCommit(); });
 }
 
 
@@ -3399,11 +3524,27 @@ function getExpenses() {
         .reduce(function (sum, item) { return sum + Number(item.amount || 0); }, 0);
 }
 
+function getAllTimeBalance() {
+    return state.transactions.reduce(function (balance, item) {
+        const amount = Number(item.amount || 0);
+        if (!Number.isFinite(amount)) return balance;
+        return item.type === "income" ? balance + amount : item.type === "expense" ? balance - amount : balance;
+    }, 0);
+}
+
 function updateMonthUI() {
     const label = document.getElementById("selectedMonthLabel");
     const input = document.getElementById("selectedMonthInput");
     if (label) label.textContent = monthLabel();
     if (input) input.value = state.selectedMonth;
+}
+
+function updateTodayDateLabel() {
+    const label = document.getElementById("dashboardTodayDate");
+    if (!label) return;
+    const today = new Date();
+    label.dateTime = getDateKey(today);
+    label.textContent = today.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
 }
 
 function setSelectedMonth(monthKey) {
@@ -3463,6 +3604,7 @@ function setupMonthSelector() {
 function scheduleSelectedDateMidnightCheck() {
     const check = function () {
         const now = new Date();
+        updateTodayDateLabel();
         if (state.followingToday) {
             const todayKey = getDateKey(now);
             if (state.selectedMonth !== getMonthKey(now) || state.selectedDate !== todayKey) {
@@ -3639,7 +3781,6 @@ function updateAnalytics() {
     const income = getIncome(), expenses = getExpenses();
     setMoney("analyticsIncome", income); setMoney("analyticsExpenses", expenses); setMoney("analyticsSavings", income - expenses);
     const count = document.getElementById("analyticsCount"); if (count) count.textContent = getSelectedMonthTransactions().length;
-    renderSpendingBreakdown();
 }
 
 function renderSpendingBreakdown() {
@@ -3648,23 +3789,19 @@ function renderSpendingBreakdown() {
     const entries = Object.entries(totals).sort(function (a, b) { return b[1] - a[1]; }), total = entries.reduce(function (sum, item) { return sum + item[1]; }, 0);
     const empty = document.getElementById("spendingEmpty"), content = document.getElementById("spendingContent");
     if (empty) empty.classList.toggle("hidden", total > 0); if (content) content.classList.toggle("hidden", total <= 0);
-    document.getElementById("totalSpentSummary").textContent = total ? formatCurrency(total) : "—";
-    document.getElementById("expenseCountSummary").textContent = expenses.length;
-    document.getElementById("topCategorySummary").textContent = entries.length ? entries[0][0] : "—";
-    document.getElementById("topCategoryAmount").textContent = entries.length ? formatCurrency(entries[0][1]) + " · " + Math.round(entries[0][1] / total * 100) + "%" : "";
     if (!total || typeof Chart === "undefined") { if (state.spendingChart) { state.spendingChart.destroy(); state.spendingChart = null; } return; }
     document.getElementById("chartTotal").textContent = formatCurrency(total);
     const colors = ["#7c5cfc", "#5cc8ff", "#16a085", "#f6a64b", "#e98175", "#5975d9", "#ae70c9", "#84b66a"];
     const legend = document.getElementById("spendingLegend"); legend.innerHTML = entries.map(function (entry, index) { const percent = Math.round(entry[1] / total * 100); return '<div class="legend-item"><span class="legend-dot" style="background:' + colors[index % colors.length] + '"></span><span>' + escapeHTML(entry[0]) + '</span><strong>' + formatCurrency(entry[1]) + '<small> · ' + percent + '%</small></strong></div>'; }).join("");
     if (state.spendingChart) state.spendingChart.destroy();
-    state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", data: { labels: entries.map(function (entry) { return entry[0]; }), datasets: [{ data: entries.map(function (entry) { return entry[1]; }), backgroundColor: entries.map(function (_, index) { return colors[index % colors.length]; }), borderWidth: 0, hoverOffset: 5 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "72%", plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (ctx) { return ctx.label + ": " + formatCurrency(ctx.raw); } } } } } });
+    state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", data: { labels: entries.map(function (entry) { return entry[0]; }), datasets: [{ data: entries.map(function (entry) { return entry[1]; }), backgroundColor: entries.map(function (_, index) { return colors[index % colors.length]; }), borderWidth: 0, borderRadius: 12, spacing: 2, hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "74%", animation: { duration: 0 }, transitions: { active: { animation: { duration: 140 } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (ctx) { return ctx.label + ": " + formatCurrency(ctx.raw); } } } } } });
 }
 
 function updateDashboard() {
-    const income = getIncome(), expenses = getExpenses(), balance = income - expenses;
-    setMoney("balanceAmount", balance); setMoney("incomeAmount", income); setMoney("expenseAmount", expenses);
+    const balance = getAllTimeBalance();
+    setMoney("balanceAmount", balance);
     const status = document.getElementById("balanceStatus"); if (status) status.textContent = balance > 0 ? "Healthy" : balance === 0 ? "Balanced" : "Over budget";
-    updateBudgetUI(); renderRecentTransactions();
+    updateBudgetUI(); renderRecentTransactions(); renderSpendingBreakdown();
 }
 
 function persistGuestTransactions() { localStorage.setItem("expense_guest_transactions", JSON.stringify(state.transactions)); }
@@ -3713,7 +3850,253 @@ function loadLocalSettings() {
     document.querySelectorAll("[data-theme]").forEach(function (button) { button.classList.toggle("active", button.dataset.theme === appearance); });
 }
 
-document.addEventListener("DOMContentLoaded", function () { document.getElementById("dateFilter").value = "selected"; setupSyncStatus(); setupMonthSelector(); setupDaySelector(); scheduleSelectedDateMidnightCheck(); setupBudget(); setupGuestImport(); setupAppearancePersistence(); updateAll(); });
+
+/* =========================================================
+   CURRENCY CONVERTER
+========================================================= */
+
+const converterDefaults = [
+    ["AUD", "Australian Dollar"], ["CAD", "Canadian Dollar"], ["CHF", "Swiss Franc"], ["CNY", "Chinese Yuan"],
+    ["CZK", "Czech Koruna"], ["DKK", "Danish Krone"], ["EUR", "Euro"], ["GBP", "British Pound"],
+    ["HKD", "Hong Kong Dollar"], ["HUF", "Hungarian Forint"], ["IDR", "Indonesian Rupiah"], ["INR", "Indian Rupee"],
+    ["JPY", "Japanese Yen"], ["KRW", "South Korean Won"], ["MYR", "Malaysian Ringgit"], ["NOK", "Norwegian Krone"],
+    ["NZD", "New Zealand Dollar"], ["PHP", "Philippine Peso"], ["PLN", "Polish Zloty"], ["SEK", "Swedish Krona"],
+    ["SGD", "Singapore Dollar"], ["THB", "Thai Baht"], ["TRY", "Turkish Lira"], ["USD", "US Dollar"], ["ZAR", "South African Rand"]
+];
+
+const converterCurrencyDetails = {
+    AUD: ["🇦🇺", "A$"], CAD: ["🇨🇦", "CA$"], CHF: ["🇨🇭", "CHF"], CNY: ["🇨🇳", "¥"],
+    CZK: ["🇨🇿", "Kč"], DKK: ["🇩🇰", "kr"], EUR: ["🇪🇺", "€"], GBP: ["🇬🇧", "£"],
+    HKD: ["🇭🇰", "HK$"], HUF: ["🇭🇺", "Ft"], IDR: ["🇮🇩", "Rp"], INR: ["🇮🇳", "₹"],
+    JPY: ["🇯🇵", "¥"], KRW: ["🇰🇷", "₩"], MYR: ["🇲🇾", "RM"], NOK: ["🇳🇴", "kr"],
+    NZD: ["🇳🇿", "NZ$"], PHP: ["🇵🇭", "₱"], PLN: ["🇵🇱", "zł"], SEK: ["🇸🇪", "kr"],
+    SGD: ["🇸🇬", "S$"], THB: ["🇹🇭", "฿"], TRY: ["🇹🇷", "₺"], USD: ["🇺🇸", "US$"], ZAR: ["🇿🇦", "R"]
+};
+
+const CONVERTER_RATE_CACHE_KEY = "expense_converter_rates_v1";
+const CONVERTER_CURRENCY_CACHE_KEY = "expense_converter_currencies_v1";
+let converterRequestId = 0;
+let converterDebounceTimer = null;
+let converterCurrencyEntries = converterDefaults.map(function (entry) { return { code: entry[0], name: entry[1] }; });
+let activeCurrencyPickerTarget = null;
+
+
+function getConverterCache(key, fallback) {
+    try { return JSON.parse(localStorage.getItem(key) || "") || fallback; }
+    catch (_) { return fallback; }
+}
+
+
+function setConverterCache(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); }
+    catch (error) { console.warn("Unable to cache converter data:", error); }
+}
+
+
+function normalizeCurrencyCode(value) {
+    return String(value || "").trim().toUpperCase();
+}
+
+
+function getConverterCurrencyDetails(code, name) {
+    const normalized = normalizeCurrencyCode(code);
+    const details = converterCurrencyDetails[normalized] || ["🌐", normalized];
+    return { code: normalized, name: name || normalized, flag: details[0], symbol: details[1] };
+}
+
+
+function updateConverterCurrencyCards() {
+    ["from", "to"].forEach(function (target) {
+        const code = normalizeCurrencyCode(document.getElementById("converter" + target[0].toUpperCase() + target.slice(1))?.value);
+        const entry = converterCurrencyEntries.find(function (item) { return item.code === code; });
+        const details = getConverterCurrencyDetails(code, entry?.name);
+        const prefix = "converter" + target[0].toUpperCase() + target.slice(1);
+        const flag = document.getElementById(prefix + "Flag"), codeLabel = document.getElementById(prefix + "Code"), nameLabel = document.getElementById(prefix + "Name"), symbol = document.getElementById(prefix + "Symbol");
+        if (flag) flag.textContent = details.flag;
+        if (codeLabel) codeLabel.textContent = details.code;
+        if (nameLabel) nameLabel.textContent = details.name;
+        if (symbol) symbol.textContent = details.symbol;
+    });
+}
+
+
+function renderCurrencyPickerList(query) {
+    const list = document.getElementById("currencyPickerList");
+    if (!list) return;
+    const needle = String(query || "").trim().toLowerCase();
+    const entries = converterCurrencyEntries.filter(function (entry) { return !needle || entry.code.toLowerCase().includes(needle) || entry.name.toLowerCase().includes(needle); });
+    list.innerHTML = entries.length ? entries.map(function (entry) {
+        const details = getConverterCurrencyDetails(entry.code, entry.name);
+        return '<button class="currency-picker-option" type="button" role="option" data-currency-code="' + details.code + '"><span class="currency-flag" aria-hidden="true">' + details.flag + '</span><span class="currency-picker-copy"><strong>' + details.code + '</strong><small>' + escapeHTML(details.name) + '</small></span><span class="currency-symbol">' + escapeHTML(details.symbol) + '</span></button>';
+    }).join("") : '<p class="currency-picker-empty">No currencies found.</p>';
+}
+
+
+function closeCurrencyPicker() {
+    document.getElementById("currencyPicker")?.classList.add("hidden");
+    activeCurrencyPickerTarget = null;
+}
+
+
+function openCurrencyPicker(target) {
+    activeCurrencyPickerTarget = target;
+    const picker = document.getElementById("currencyPicker"), search = document.getElementById("currencyPickerSearch");
+    if (!picker || !search) return;
+    search.value = "";
+    renderCurrencyPickerList();
+    picker.classList.remove("hidden");
+    requestAnimationFrame(function () { search.focus(); });
+}
+
+
+function selectConverterCurrency(code) {
+    if (!activeCurrencyPickerTarget) return;
+    const input = document.getElementById("converter" + activeCurrencyPickerTarget[0].toUpperCase() + activeCurrencyPickerTarget.slice(1));
+    if (!input) return;
+    input.value = normalizeCurrencyCode(code);
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+    updateConverterCurrencyCards();
+    closeCurrencyPicker();
+}
+
+
+function renderConverterCurrencies(items) {
+    const unique = new Map(converterDefaults);
+    (items || []).forEach(function (item) {
+        const code = normalizeCurrencyCode(item.iso_code || item.code || item.currency || item[0]);
+        const name = item.name || item[1] || "";
+        if (/^[A-Z]{3}$/.test(code)) unique.set(code, name || unique.get(code) || code);
+    });
+    converterCurrencyEntries = Array.from(unique.entries()).sort(function (a, b) { return a[0].localeCompare(b[0]); })
+        .map(function (entry) { return { code: entry[0], name: entry[1] }; });
+    updateConverterCurrencyCards();
+    renderCurrencyPickerList(document.getElementById("currencyPickerSearch")?.value);
+}
+
+
+function updateConverterStatus(message, kind) {
+    const status = document.getElementById("converterStatus");
+    if (!status) return;
+    status.textContent = message;
+    status.className = "converter-status" + (kind ? " " + kind : "");
+}
+
+
+function renderConverterRate(rateData, cached) {
+    const amount = Number(document.getElementById("converterAmount")?.value || 0);
+    const from = normalizeCurrencyCode(document.getElementById("converterFrom")?.value);
+    const to = normalizeCurrencyCode(document.getElementById("converterTo")?.value);
+    const result = document.getElementById("converterResult");
+    const rate = document.getElementById("converterRate");
+    const updated = document.getElementById("converterUpdated");
+    updateConverterCurrencyCards();
+    if (!result || !rate || !updated) return;
+    if (!rateData || !Number.isFinite(Number(rateData.rate))) {
+        result.textContent = "—";
+        rate.textContent = "Reference rate: unavailable";
+        updated.textContent = "Last updated: —";
+        return;
+    }
+    const converted = Number.isFinite(amount) ? amount * Number(rateData.rate) : 0;
+    result.textContent = new Intl.NumberFormat(undefined, { style: "currency", currency: to, maximumFractionDigits: 2 }).format(converted);
+    rate.textContent = "Reference rate: 1 " + from + " = " + Number(rateData.rate).toLocaleString(undefined, { maximumFractionDigits: 6 }) + " " + to;
+    updated.textContent = "Last updated: " + (rateData.date || "—") + (cached ? " · cached" : "");
+}
+
+
+async function loadConverterCurrencies() {
+    const cached = getConverterCache(CONVERTER_CURRENCY_CACHE_KEY, []);
+    renderConverterCurrencies(cached);
+    if (!navigator.onLine) return;
+    try {
+        const response = await fetch("https://api.frankfurter.dev/v2/currencies");
+        if (!response.ok) throw new Error("Currency list request failed");
+        const data = await response.json();
+        const items = Array.isArray(data) ? data : Object.entries(data || {}).map(function ([code, name]) { return { code: code, name: name }; });
+        setConverterCache(CONVERTER_CURRENCY_CACHE_KEY, items);
+        renderConverterCurrencies(items);
+    } catch (error) {
+        console.warn("Using cached converter currencies:", error);
+    }
+}
+
+
+async function convertCurrency() {
+    const fromInput = document.getElementById("converterFrom");
+    const toInput = document.getElementById("converterTo");
+    if (!fromInput || !toInput) return;
+    const from = normalizeCurrencyCode(fromInput.value);
+    const to = normalizeCurrencyCode(toInput.value);
+    fromInput.value = from;
+    toInput.value = to;
+    const key = from + ":" + to;
+    const cache = getConverterCache(CONVERTER_RATE_CACHE_KEY, {});
+    const cached = cache[key];
+    const requestId = ++converterRequestId;
+    if (!/^[A-Z]{3}$/.test(from) || !/^[A-Z]{3}$/.test(to)) {
+        renderConverterRate(null, false);
+        updateConverterStatus("Enter 3-letter codes", "error");
+        return;
+    }
+    if (from === to) {
+        const sameCurrency = { rate: 1, date: new Date().toISOString().slice(0, 10) };
+        renderConverterRate(sameCurrency, false);
+        updateConverterStatus("Same currency");
+        return;
+    }
+    if (cached) renderConverterRate(cached, true);
+    if (!navigator.onLine) {
+        updateConverterStatus(cached ? "Cached rate · offline" : "Offline · no cached rate", cached ? "cached" : "error");
+        return;
+    }
+    updateConverterStatus(cached ? "Refreshing rate…" : "Loading rate…");
+    try {
+        const response = await fetch("https://api.frankfurter.dev/v2/rate/" + encodeURIComponent(from) + "/" + encodeURIComponent(to));
+        if (!response.ok) throw new Error("Rate request failed");
+        const data = await response.json();
+        const fresh = { rate: Number(data.rate), date: data.date || "" };
+        if (!Number.isFinite(fresh.rate)) throw new Error("Invalid rate response");
+        cache[key] = fresh;
+        setConverterCache(CONVERTER_RATE_CACHE_KEY, cache);
+        if (requestId !== converterRequestId) return;
+        renderConverterRate(fresh, false);
+        updateConverterStatus("Latest reference rate");
+    } catch (error) {
+        if (requestId !== converterRequestId) return;
+        renderConverterRate(cached || null, Boolean(cached));
+        updateConverterStatus(cached ? "Cached rate · update unavailable" : "Rate unavailable", cached ? "cached" : "error");
+    }
+}
+
+
+function scheduleCurrencyConversion() {
+    clearTimeout(converterDebounceTimer);
+    converterDebounceTimer = setTimeout(convertCurrency, 180);
+}
+
+
+function setupCurrencyConverter() {
+    const amount = document.getElementById("converterAmount");
+    const from = document.getElementById("converterFrom");
+    const to = document.getElementById("converterTo");
+    const swap = document.getElementById("swapCurrenciesButton");
+    const search = document.getElementById("currencyPickerSearch"), picker = document.getElementById("currencyPicker");
+    if (!amount || !from || !to || !swap) return;
+    [amount, from, to].forEach(function (input) { input.addEventListener("input", scheduleCurrencyConversion); input.addEventListener("change", scheduleCurrencyConversion); });
+    document.querySelectorAll("[data-currency-target]").forEach(function (button) { button.addEventListener("click", function () { openCurrencyPicker(button.dataset.currencyTarget); }); });
+    document.getElementById("closeCurrencyPicker")?.addEventListener("click", closeCurrencyPicker);
+    picker?.addEventListener("click", function (event) { if (event.target === picker) closeCurrencyPicker(); });
+    document.getElementById("currencyPickerList")?.addEventListener("click", function (event) { const option = event.target.closest("[data-currency-code]"); if (option) selectConverterCurrency(option.dataset.currencyCode); });
+    search?.addEventListener("input", function () { renderCurrencyPickerList(search.value); });
+    document.addEventListener("keydown", function (event) { if (event.key === "Escape") closeCurrencyPicker(); });
+    swap.addEventListener("click", function () { const previous = from.value; from.value = to.value; to.value = previous; updateConverterCurrencyCards(); convertCurrency(); });
+    window.addEventListener("online", function () { loadConverterCurrencies(); convertCurrency(); });
+    updateConverterCurrencyCards();
+    loadConverterCurrencies();
+    convertCurrency();
+}
+
+document.addEventListener("DOMContentLoaded", function () { document.getElementById("dateFilter").value = "selected"; setupSyncStatus(); setupMonthSelector(); setupDaySelector(); updateTodayDateLabel(); scheduleSelectedDateMidnightCheck(); setupBudget(); setupGuestImport(); setupAppearancePersistence(); setupCurrencyConverter(); updateDashboardControlsVisibility(); updateAll(); });
 onAuthStateChanged(auth, function (user) {
     if (!user) { if (state.unsubscribeBudget) { state.unsubscribeBudget(); state.unsubscribeBudget = null; } state.currentBudget = null; updateBudgetUI(); return; }
     loadBudget(); const guestItems = loadGuestTransactions();
