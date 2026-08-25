@@ -384,24 +384,10 @@ a {
 .brand-icon {
     width: 36px;
     height: 36px;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
+    display: block;
+    flex: 0 0 36px;
     border-radius: 11px;
-
-    color: white;
-
-    background:
-        linear-gradient(
-            135deg,
-            var(--primary),
-            var(--secondary)
-        );
-
-    box-shadow:
-        0 8px 18px rgba(124, 92, 252, 0.2);
+    object-fit: cover;
 }
 
 
@@ -3074,6 +3060,183 @@ body.dark .currency-picker-panel {
 body.dark .currency-search {
     border-color: var(--border);
     background: var(--surface-soft);
+}
+
+.transaction-filter-panel {
+    margin-bottom: 18px;
+    padding: 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-medium);
+    background: var(--surface);
+    box-shadow: var(--shadow-small);
+}
+
+.transaction-filter-panel .filter-bar {
+    margin-bottom: 0;
+}
+
+.month-filter {
+    min-width: 150px;
+}
+
+@media (max-width: 760px) {
+    .transaction-filter-panel {
+        padding: 10px;
+        border-radius: 18px;
+    }
+
+    .transaction-filter-panel .filter-bar {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 8px;
+    }
+
+    .transaction-filter-panel .search-box {
+        grid-column: 1 / -1;
+    }
+
+    .transaction-filter-panel .select-input {
+        width: 100%;
+        min-width: 0;
+    }
+}
+
+
+/* =========================================================
+   39. RESPONSIVE NAVIGATION REFINEMENT
+   ========================================================= */
+
+/* Restore the dashboard's original, lightly dimensional canvas. */
+.main-content {
+    background:
+        radial-gradient(
+            circle at 80% 0%,
+            rgba(124, 92, 252, 0.07),
+            transparent 32%
+        ),
+        var(--background);
+}
+
+@media (min-width: 761px) {
+    .mobile-floating-nav {
+        display: none !important;
+    }
+
+    .main-content {
+        padding: 32px clamp(32px, 4vw, 56px) 72px;
+    }
+
+    .topbar,
+    .page {
+        width: min(100%, 1200px);
+        margin-right: auto;
+        margin-left: auto;
+    }
+
+    .topbar {
+        margin-bottom: 30px;
+    }
+
+    .page-header {
+        margin-bottom: 24px;
+    }
+
+    .summary-card,
+    .analytics-card,
+    .chart-card,
+    .settings-card,
+    .budget-card,
+    .converter-card {
+        padding: 24px;
+    }
+}
+
+@media (max-width: 760px) {
+    .main-content {
+        padding-bottom: calc(112px + env(safe-area-inset-bottom));
+    }
+
+    .mobile-floating-nav {
+        right: max(14px, env(safe-area-inset-right));
+        bottom: calc(10px + env(safe-area-inset-bottom));
+        left: max(14px, env(safe-area-inset-left));
+        min-height: 64px;
+        padding: 6px 7px;
+        border: 1px solid rgba(0, 0, 0, 0.09);
+        border-radius: 24px;
+        background: rgba(255, 255, 255, 0.96);
+        box-shadow: 0 8px 22px rgba(20, 20, 24, 0.14);
+    }
+
+    .mobile-nav-item,
+    .mobile-nav-add {
+        -webkit-tap-highlight-color: transparent;
+        touch-action: manipulation;
+    }
+
+    .mobile-nav-item {
+        min-height: 48px;
+        border-radius: 15px;
+        color: #171719;
+        background: transparent;
+    }
+
+    .mobile-nav-item i {
+        font-size: 19px;
+        line-height: 1;
+    }
+
+    .mobile-nav-item span {
+        display: none;
+    }
+
+    .mobile-nav-item.active {
+        color: #080809;
+        background: rgba(0, 0, 0, 0.07);
+    }
+
+    .mobile-nav-add {
+        width: 58px;
+        height: 58px;
+        border-radius: 20px;
+        color: #ffffff;
+        box-shadow: 0 9px 20px rgba(74, 51, 178, 0.28);
+        transform: translateY(-15px);
+    }
+
+    .mobile-nav-add i {
+        font-size: 23px;
+    }
+
+    .mobile-nav-item:active,
+    .mobile-nav-add:active {
+        background-color: transparent;
+        box-shadow: none;
+    }
+
+    .mobile-nav-item:active {
+        transform: scale(0.94);
+    }
+
+    .mobile-nav-add:active {
+        transform: translateY(-15px) scale(0.93);
+    }
+
+    .mobile-nav-item:focus:not(:focus-visible),
+    .mobile-nav-add:focus:not(:focus-visible) {
+        outline: none;
+    }
+
+    .mobile-nav-item:focus-visible,
+    .mobile-nav-add:focus-visible {
+        outline: 3px solid #171719;
+        outline-offset: 3px;
+    }
+
+    body.dark .mobile-floating-nav {
+        border-color: rgba(0, 0, 0, 0.09);
+        background: rgba(255, 255, 255, 0.96);
+    }
 }
 
 @media (max-width: 640px) {

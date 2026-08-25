@@ -5,6 +5,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#46474D">
 
     <title>Expense Tracker</title>
 
@@ -25,7 +26,7 @@
 
     <!-- INTRO -->
     <div id="introScreen" class="intro-screen" aria-hidden="true">
-        <img class="intro-logo" src="./app-icon.png" alt="">
+        <img class="intro-logo" src="./app-icon-512.png" alt="">
     </div>
 
 
@@ -79,9 +80,7 @@
 
                 <div class="brand">
 
-                    <div class="brand-icon">
-                        <i class="fa-solid fa-wallet"></i>
-                    </div>
+                    <img class="brand-icon" src="./app-icon.png" alt="">
 
                     <span>Expense Tracker</span>
 
@@ -189,17 +188,13 @@
             <!-- TOPBAR -->
             <header class="topbar">
 
-                <div class="topbar-left">
+                <div id="homeGreeting" class="topbar-left">
 
                     <div>
 
                         <p id="greeting" class="greeting">
-                            Good morning
+                            Good morning, Guest
                         </p>
-
-                        <h2 id="userName" class="user-name">
-                            Guest
-                        </h2>
 
                     </div>
 
@@ -294,62 +289,8 @@
                     Back
                 </button>
 
-                <div class="page-header">
-
-                    <div>
-
-                        <span class="eyebrow">
-                            MONEY
-                        </span>
-
-                        <h1>
-                            Transactions
-                        </h1>
-
-                        <p>
-                            View and manage your transactions.
-                        </p>
-
-                    </div>
-
-                    <button
-                        id="transactionsAddButton"
-                        class="primary-button"
-                        type="button"
-                    >
-                        <i class="fa-solid fa-plus"></i>
-                        Add transaction
-                    </button>
-
-                </div>
-
-                <section class="section recent-transactions-section" aria-labelledby="recentTransactionsTitle">
-                    <div class="section-header recent-transactions-header">
-                        <div>
-                            <span class="eyebrow">ACTIVITY</span>
-                            <h3 id="recentTransactionsTitle">Recent Transactions</h3>
-                        </div>
-
-                        <div id="transactionDateControls" class="transaction-context-controls" aria-label="Transaction date controls">
-                            <div class="month-selector" aria-label="Selected month">
-                                <button id="previousMonthButton" class="month-arrow" type="button" aria-label="Previous month"><i class="fa-solid fa-chevron-left"></i></button>
-                                <label class="month-label"><span id="selectedMonthLabel">Current month</span><input id="selectedMonthInput" type="month" aria-label="Choose month"></label>
-                                <button id="nextMonthButton" class="month-arrow" type="button" aria-label="Next month"><i class="fa-solid fa-chevron-right"></i></button>
-                                <button id="currentMonthButton" class="month-today" type="button" title="Current month">Today</button>
-                            </div>
-
-                            <div class="day-selector" aria-label="Selected day">
-                                <button id="previousDayButton" class="month-arrow" type="button" aria-label="Previous day"><i class="fa-solid fa-chevron-left"></i></button>
-                                <label class="day-label"><span id="selectedDayLabel">Today</span><input id="selectedDayInput" type="date" aria-label="Choose day"></label>
-                                <button id="nextDayButton" class="month-arrow" type="button" aria-label="Next day"><i class="fa-solid fa-chevron-right"></i></button>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="recentTransactions" class="transactions-list"></div>
-                </section>
-
-                <div class="filter-bar">
+                <section class="transaction-filter-panel" aria-label="Search and filter transactions">
+                    <div class="filter-bar">
                     <label class="search-box" for="searchInput">
                         <i class="fa-solid fa-magnifying-glass"></i>
                         <input id="searchInput" type="search" placeholder="Search transactions">
@@ -362,6 +303,7 @@
                     <select id="categoryFilter" class="select-input" aria-label="Filter by category">
                         <option value="all">All categories</option>
                     </select>
+                    <input id="selectedMonthInput" class="select-input month-filter" type="month" aria-label="Filter by selected month">
                     <select id="dateFilter" class="select-input" aria-label="Filter by date">
                         <option value="selected">Selected month</option>
                         <option value="all">All time</option>
@@ -369,7 +311,8 @@
                         <option value="week">Last 7 days</option>
                         <option value="month">This month</option>
                     </select>
-                </div>
+                    </div>
+                </section>
 
 
                 <div

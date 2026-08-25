@@ -33,7 +33,6 @@ const googleProvider = new GoogleAuthProvider();
 const SPLASH_MINIMUM_DURATION = 500;
 const SPLASH_FADE_DURATION = 320;
 let splashStartedAt = performance.now();
-let splashFallbackTimer = null;
 
 
 /* =========================================================
@@ -294,10 +293,6 @@ function setupGuestLogin() {
 
 function setupIntro() {
     splashStartedAt = performance.now();
-    splashFallbackTimer = setTimeout(function () {
-        completeStartup("login");
-    }, 650);
-
 }
 
 
@@ -325,10 +320,6 @@ function completeStartup(destination) {
 
     const intro = document.getElementById("introScreen");
     if (!intro || intro.classList.contains("hidden") || intro.classList.contains("is-leaving")) return;
-    if (splashFallbackTimer) {
-        clearTimeout(splashFallbackTimer);
-        splashFallbackTimer = null;
-    }
     const remaining = Math.max(0, SPLASH_MINIMUM_DURATION - (performance.now() - splashStartedAt));
     setTimeout(hideIntro, remaining);
 }
@@ -1186,28 +1177,6 @@ function setupQuickActions() {
     if (emptyAdd) {
 
         emptyAdd.addEventListener(
-            "click",
-            function () {
-
-                openTransactionModal(
-                    "expense"
-                );
-
-            }
-        );
-
-    }
-
-
-    const transactionAdd =
-        document.getElementById(
-            "transactionsAddButton"
-        );
-
-
-    if (transactionAdd) {
-
-        transactionAdd.addEventListener(
             "click",
             function () {
 
@@ -2969,11 +2938,6 @@ function updateUserProfile(user) {
             : "";
 
 
-    const userName =
-        document.getElementById(
-            "userName"
-        );
-
     const sidebarUserName =
         document.getElementById(
             "sidebarUserName"
@@ -2993,12 +2957,6 @@ function updateUserProfile(user) {
         document.getElementById(
             "settingsUserEmail"
         );
-
-
-    if (userName) {
-        userName.textContent =
-            name;
-    }
 
 
     if (sidebarUserName) {
@@ -3023,6 +2981,8 @@ function updateUserProfile(user) {
         settingsUserEmail.textContent =
             email;
     }
+
+    updateGreeting();
 
 }
 
@@ -3092,9 +3052,9 @@ function setupNicknameSetting() {
 
 function updateDashboardControlsVisibility() {
     const todayDate = document.getElementById("dashboardTodayDate");
-    const transactionControls = document.getElementById("transactionDateControls");
+    const homeGreeting = document.getElementById("homeGreeting");
     if (todayDate) todayDate.classList.toggle("hidden", state.currentPage !== "dashboard");
-    if (transactionControls) transactionControls.classList.toggle("hidden", state.currentPage !== "transactions");
+    if (homeGreeting) homeGreeting.classList.toggle("hidden", state.currentPage !== "dashboard");
 }
 
 
@@ -3270,22 +3230,14 @@ function updateGreeting() {
         new Date().getHours();
 
 
-    if (hour < 12) {
+    const greeting = hour < 12
+        ? "Good morning"
+        : hour < 18
+            ? "Good afternoon"
+            : "Good evening";
 
-        greetingElement.textContent =
-            "Good morning";
-
-    } else if (hour < 18) {
-
-        greetingElement.textContent =
-            "Good afternoon";
-
-    } else {
-
-        greetingElement.textContent =
-            "Good evening";
-
-    }
+    greetingElement.textContent =
+        greeting + ", " + getUserDisplayName(state.currentUser);
 
 }
 
@@ -3533,9 +3485,7 @@ function getAllTimeBalance() {
 }
 
 function updateMonthUI() {
-    const label = document.getElementById("selectedMonthLabel");
     const input = document.getElementById("selectedMonthInput");
-    if (label) label.textContent = monthLabel();
     if (input) input.value = state.selectedMonth;
 }
 
@@ -3564,39 +3514,11 @@ function setSelectedMonth(monthKey) {
         state.followingToday = false;
     }
     updateMonthUI();
-    updateDayUI();
     loadBudget();
     updateAll();
 }
 
-function updateDayUI() {
-    const input = document.getElementById("selectedDayInput"), label = document.getElementById("selectedDayLabel");
-    if (input) { input.min = state.selectedMonth + "-01"; input.max = state.selectedMonth + "-" + String(new Date(Number(state.selectedMonth.slice(0,4)), Number(state.selectedMonth.slice(5,7)), 0).getDate()).padStart(2,"0"); input.value = state.selectedDate; }
-    if (label) label.textContent = new Date(state.selectedDate + "T00:00:00").toLocaleDateString("en-US", { day:"numeric", month:"short" });
-}
-
-function setSelectedDate(dateKey) {
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateKey) || dateKey.slice(0,7) !== state.selectedMonth) return;
-    state.selectedDate = dateKey;
-    state.followingToday = dateKey === getDateKey(new Date()) && state.selectedMonth === getMonthKey(new Date());
-    updateDayUI(); renderRecentTransactions();
-}
-
-function setupDaySelector() {
-    document.getElementById("previousDayButton")?.addEventListener("click", function () { const d = new Date(state.selectedDate + "T00:00:00"); d.setDate(d.getDate()-1); if (getMonthKey(d) === state.selectedMonth) setSelectedDate(getDateKey(d)); });
-    document.getElementById("nextDayButton")?.addEventListener("click", function () { const d = new Date(state.selectedDate + "T00:00:00"); d.setDate(d.getDate()+1); if (getMonthKey(d) === state.selectedMonth) setSelectedDate(getDateKey(d)); });
-    document.getElementById("selectedDayInput")?.addEventListener("change", function (event) { setSelectedDate(event.target.value); });
-    updateDayUI();
-}
-
 function setupMonthSelector() {
-    document.getElementById("previousMonthButton")?.addEventListener("click", function () {
-        const date = new Date(state.selectedMonth + "-01T00:00:00"); date.setMonth(date.getMonth() - 1); setSelectedMonth(getMonthKey(date));
-    });
-    document.getElementById("nextMonthButton")?.addEventListener("click", function () {
-        const date = new Date(state.selectedMonth + "-01T00:00:00"); date.setMonth(date.getMonth() + 1); setSelectedMonth(getMonthKey(date));
-    });
-    document.getElementById("currentMonthButton")?.addEventListener("click", function () { setSelectedMonth(getMonthKey(new Date())); });
     document.getElementById("selectedMonthInput")?.addEventListener("change", function (event) { setSelectedMonth(event.target.value); });
     updateMonthUI();
 }
@@ -3751,13 +3673,6 @@ function updateCategoryBudgetTotalLegacy() {
     if (target) target.textContent = "Category budgets total: " + (total ? formatCurrency(total) : "—");
 }
 
-function renderRecentTransactions() {
-    const container = document.getElementById("recentTransactions"); if (!container) return;
-    const items = getSelectedMonthTransactions().filter(function (item) { return item.date === state.selectedDate; }).sort(sortTransactionsNewestFirst); container.innerHTML = "";
-    if (!items.length) { container.innerHTML = '<div class="empty-state"><div class="empty-icon"><i class="fa-solid fa-receipt"></i></div><h4>No transactions for this day</h4><p>Add a transaction to get started.</p><button class="primary-button" id="recentEmptyAdd" type="button"><i class="fa-solid fa-plus"></i> Add transaction</button></div>'; document.getElementById("recentEmptyAdd")?.addEventListener("click", function () { openTransactionModal("expense"); }); return; }
-    items.slice(0, 5).forEach(function (item) { container.appendChild(createTransactionElement(item)); });
-}
-
 function renderAllTransactions() {
     const container = document.getElementById("allTransactions"); if (!container) return;
     const search = (document.getElementById("searchInput")?.value || "").toLowerCase(), type = document.getElementById("typeFilter")?.value || "all", category = document.getElementById("categoryFilter")?.value || "all", filter = document.getElementById("dateFilter")?.value || "selected";
@@ -3801,7 +3716,7 @@ function updateDashboard() {
     const balance = getAllTimeBalance();
     setMoney("balanceAmount", balance);
     const status = document.getElementById("balanceStatus"); if (status) status.textContent = balance > 0 ? "Healthy" : balance === 0 ? "Balanced" : "Over budget";
-    updateBudgetUI(); renderRecentTransactions(); renderSpendingBreakdown();
+    updateBudgetUI(); renderSpendingBreakdown();
 }
 
 function persistGuestTransactions() { localStorage.setItem("expense_guest_transactions", JSON.stringify(state.transactions)); }
@@ -4096,7 +4011,7 @@ function setupCurrencyConverter() {
     convertCurrency();
 }
 
-document.addEventListener("DOMContentLoaded", function () { document.getElementById("dateFilter").value = "selected"; setupSyncStatus(); setupMonthSelector(); setupDaySelector(); updateTodayDateLabel(); scheduleSelectedDateMidnightCheck(); setupBudget(); setupGuestImport(); setupAppearancePersistence(); setupCurrencyConverter(); updateDashboardControlsVisibility(); updateAll(); });
+document.addEventListener("DOMContentLoaded", function () { document.getElementById("dateFilter").value = "selected"; setupSyncStatus(); setupMonthSelector(); updateTodayDateLabel(); scheduleSelectedDateMidnightCheck(); setupBudget(); setupGuestImport(); setupAppearancePersistence(); setupCurrencyConverter(); updateDashboardControlsVisibility(); updateAll(); });
 onAuthStateChanged(auth, function (user) {
     if (!user) { if (state.unsubscribeBudget) { state.unsubscribeBudget(); state.unsubscribeBudget = null; } state.currentBudget = null; updateBudgetUI(); return; }
     loadBudget(); const guestItems = loadGuestTransactions();
