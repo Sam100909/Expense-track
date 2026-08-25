@@ -3895,16 +3895,12 @@ function renderSpendingLabels(entries, colors) {
     }); });
 }
 
-function getExternalLabelGeometry(centerX, centerY, outerRadius, canvasWidth, chartTop, chartBottom, side, position, count, textWidth) {
-    const gap = 16, edge = centerX + side * outerRadius, elbowX = centerX + side * (outerRadius + 18);
-    const labelY = chartTop + 16 + ((position + 1) / (count + 1)) * (chartBottom - chartTop - 32);
-    const textX = side > 0 ? Math.max(edge + gap, Math.min(canvasWidth - textWidth - 6, elbowX + 8)) : Math.min(edge - gap, Math.max(textWidth + 6, elbowX - 8));
-    return { edge, elbowX, labelY, textX, left: side > 0 ? textX : textX - textWidth, right: side > 0 ? textX + textWidth : textX };
-}
-
-function assertExternalLabelGeometry(geometry, centerX, outerRadius, side) {
-    const boundary = centerX + side * outerRadius;
-    return side > 0 ? geometry.left >= boundary + 16 : geometry.right <= boundary - 16;
+function getExternalLabelGeometry(centerX, centerY, outerRadius, canvasWidth, chartTop, chartBottom, side, desiredY, textWidth) {
+    const labelY = Math.max(chartTop + 9, Math.min(chartBottom - 9, desiredY));
+    const vertical = Math.min(outerRadius, Math.abs(labelY - centerY));
+    const ringEdgeX = centerX + side * Math.sqrt(Math.max(0, outerRadius * outerRadius - vertical * vertical));
+    const textX = side > 0 ? Math.max(ringEdgeX + 12, Math.min(canvasWidth - textWidth - 6, ringEdgeX + 12)) : Math.min(ringEdgeX - 12, Math.max(textWidth + 6, ringEdgeX - 12));
+    return { labelY, textX, left: side > 0 ? textX : textX - textWidth, right: side > 0 ? textX + textWidth : textX };
 }
 
 const chartExternalLabels = {
@@ -3916,15 +3912,16 @@ const chartExternalLabels = {
             const angle = (arc.startAngle + arc.endAngle) / 2;
             (Math.cos(angle) >= 0 ? sides[1] : sides[0]).push({ arc, index, angle });
         });
-        ctx.save(); ctx.font = "500 14px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"; ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--text-secondary").trim(); ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--border").trim(); ctx.lineWidth = 1;
+        ctx.save(); ctx.font = "500 14px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"; ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--text-secondary").trim();
         sides.forEach(function (side, sideIndex) {
             side.sort(function (a, b) { return Math.sin(a.angle) - Math.sin(b.angle); });
+            let previousY = chart.chartArea.top - 18;
             side.forEach(function (item, position) {
                 const arc = item.arc, direction = sideIndex ? 1 : -1, text = t(labels[item.index] || ""), textWidth = ctx.measureText(text).width;
-                const geometry = getExternalLabelGeometry(arc.x, arc.y, arc.outerRadius, chart.width, chart.chartArea.top, chart.chartArea.bottom, direction, position, side.length, textWidth);
-                if (!assertExternalLabelGeometry(geometry, arc.x, arc.outerRadius, direction)) return;
-                const startX = geometry.edge, startY = arc.y, lineEndX = direction > 0 ? geometry.textX - 5 : geometry.textX + 5;
-                ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(geometry.elbowX, startY); ctx.lineTo(lineEndX, geometry.labelY); ctx.stroke();
+                const midpointY = meta.data.length === 1 ? arc.y : arc.y + Math.sin(item.angle) * (arc.outerRadius + 12);
+                const desiredY = side.length === 1 ? midpointY : Math.max(chart.chartArea.top + 12, Math.min(chart.chartArea.bottom - 12, midpointY));
+                const geometry = getExternalLabelGeometry(arc.x, arc.y, arc.outerRadius, chart.width, chart.chartArea.top, chart.chartArea.bottom, direction, Math.max(desiredY, previousY + 18), textWidth);
+                previousY = geometry.labelY;
                 ctx.textAlign = direction > 0 ? "left" : "right"; ctx.textBaseline = "middle"; ctx.fillText(text, geometry.textX, geometry.labelY);
             });
         });
