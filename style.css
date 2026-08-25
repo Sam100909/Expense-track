@@ -3295,3 +3295,5 @@ body.dark .spending-label { color:var(--text-secondary); }
 .transaction-modal-card { width:min(450px,100%); max-height:calc(100dvh - 40px); padding:23px; }
 .transaction-modal-card .modal-header { margin-bottom:20px; }.transaction-modal-card .form-group { gap:7px; }.transaction-modal-card .amount-input { min-height:50px; }
 @media (max-width:760px) { .transaction-modal-card { width:min(450px,100%); padding:20px 18px; max-height:calc(100dvh - 28px); } .transaction-icon-action { width:42px; height:42px; } }
+
+.build-version { margin:26px 0 4px; color:var(--text-tertiary); font-size:11px; text-align:center; }

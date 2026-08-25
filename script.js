@@ -3784,6 +3784,7 @@ function updateAnalytics() {
 }
 
 function renderSpendingBreakdownLegacy() {
+    return;
     const expenses = getSelectedMonthTransactions().filter(function (item) { return item.type === "expense"; });
     const totals = expenses.reduce(function (all, item) { const key = item.category || "Other"; all[key] = (all[key] || 0) + Number(item.amount || 0); return all; }, {});
     const entries = Object.entries(totals).sort(function (a, b) { return b[1] - a[1]; }), total = entries.reduce(function (sum, item) { return sum + item[1]; }, 0);
@@ -3825,8 +3826,7 @@ function setupAppearancePersistence() {
         const primary = document.getElementById("primaryColor")?.value;
         const secondary = document.getElementById("secondaryColor")?.value;
         localStorage.setItem("expense_appearance", selected);
-        if (primary) localStorage.setItem("expense_primary_color", primary);
-        if (secondary) localStorage.setItem("expense_secondary_color", secondary);
+        if (primary && secondary) { localStorage.setItem("expense_primary_color", primary); localStorage.setItem("expense_secondary_color", secondary); localStorage.setItem("expense_has_custom_colors", "true"); }
         applyTheme(selected); applySavedAccentColors(); renderSpendingBreakdown(); showToast("Appearance saved");
     });
 }
@@ -3835,8 +3835,11 @@ function applySavedAccentColors() {
     const primary = localStorage.getItem("expense_primary_color");
     const secondary = localStorage.getItem("expense_secondary_color");
     const primaryInput = document.getElementById("primaryColor"), secondaryInput = document.getElementById("secondaryColor");
-    if (primary && /^#[0-9a-f]{6}$/i.test(primary)) { document.documentElement.style.setProperty("--primary", primary); if (primaryInput) primaryInput.value = primary; }
-    if (secondary && /^#[0-9a-f]{6}$/i.test(secondary)) { document.documentElement.style.setProperty("--secondary", secondary); if (secondaryInput) secondaryInput.value = secondary; }
+    const hasCustomColors = localStorage.getItem("expense_has_custom_colors") === "true";
+    if (hasCustomColors && primary && /^#[0-9a-f]{6}$/i.test(primary)) { document.documentElement.style.setProperty("--primary", primary); if (primaryInput) primaryInput.value = primary; }
+    else document.documentElement.style.setProperty("--primary", "#242628");
+    if (hasCustomColors && secondary && /^#[0-9a-f]{6}$/i.test(secondary)) { document.documentElement.style.setProperty("--secondary", secondary); if (secondaryInput) secondaryInput.value = secondary; }
+    else document.documentElement.style.setProperty("--secondary", "#858889");
 }
 
 function migrateLegacyThemeColors() {
@@ -3865,7 +3868,7 @@ function getCategoryColor(category) {
     const hash = Array.from(String(category)).reduce(function (value, char) { return ((value << 5) - value + char.charCodeAt(0)) | 0; }, 0);
     const index = Math.abs(hash) % 6;
     const savedPrimary = localStorage.getItem("expense_primary_color"), savedSecondary = localStorage.getItem("expense_secondary_color");
-    if (!(/^#[0-9a-f]{6}$/i.test(savedPrimary || "") && /^#[0-9a-f]{6}$/i.test(savedSecondary || ""))) {
+    if (!(localStorage.getItem("expense_has_custom_colors") === "true" && /^#[0-9a-f]{6}$/i.test(savedPrimary || "") && /^#[0-9a-f]{6}$/i.test(savedSecondary || ""))) {
         return (document.body.classList.contains("dark") ? ["#f1f1ef", "#d0d1d0", "#aeb0b0", "#858889", "#5f6264", "#3f4244"] : ["#242628", "#3f4244", "#5f6264", "#858889", "#aeb0b0", "#d0d1d0"])[index];
     }
     const styles = getComputedStyle(document.documentElement);

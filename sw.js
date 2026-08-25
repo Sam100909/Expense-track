@@ -1,12 +1,12 @@
 // Bump this value whenever app-shell files change. The cache-first fetch
 // strategy otherwise continues serving an older HTML/JavaScript bundle.
-const CACHE_NAME = "expense-track-v29";
+const CACHE_NAME = "expense-track-v30";
 
 const FILES_TO_CACHE = [
 "./",
 "./index.html",
-"./style.css",
-"./script.js",
+"./style.css?v=30",
+"./script.js?v=30",
 "./firebase-config.js",
 "./manifest.json",
 "./app-icon.png",
@@ -35,7 +35,7 @@ caches.keys()
 return Promise.all(
 cacheNames
 .filter(function (name) {
-return name !== CACHE_NAME;
+return name.startsWith("expense-track-v") && name !== CACHE_NAME;
 })
 .map(function (name) {
 return caches.delete(name);
