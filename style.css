@@ -128,49 +128,8 @@ a {
 }
 
 
-/* =========================================================
-   4. INTRO SCREEN
-   ========================================================= */
-
-.intro-screen {
-    position: fixed;
-    inset: 0;
-    z-index: 9999;
-
-    display: flex;
-    align-items: center;
-    justify-content: center;
-
-    background-color: #46474d;
-
-    transition: opacity 0.32s ease, visibility 0.32s ease;
-}
-
-.intro-screen.is-leaving {
-    opacity: 0;
-    visibility: hidden;
-    pointer-events: none;
-}
-
-.intro-logo {
-    width: clamp(92px, 22vw, 128px);
-    height: clamp(92px, 22vw, 128px);
-    display: block;
-    object-fit: contain;
-    animation: splashIconIn 0.52s cubic-bezier(0.2, 0.8, 0.2, 1) both;
-}
-
-@keyframes splashIconIn {
-
-    from {
-        opacity: 0;
-        transform: scale(0.94);
-    }
-
-    to {
-        opacity: 1;
-        transform: scale(1);
-    }
+body.auth-pending {
+    background: #46474d;
 }
 
 
@@ -2427,10 +2386,6 @@ body.dark .empty-state {
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
         scroll-behavior: auto !important;
-    }
-
-    .intro-screen {
-        transition: none;
     }
 
 }

@@ -30,9 +30,6 @@ import {
 
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
-const SPLASH_MINIMUM_DURATION = 500;
-const SPLASH_FADE_DURATION = 320;
-let splashStartedAt = performance.now();
 
 
 /* =========================================================
@@ -104,7 +101,6 @@ document.addEventListener("DOMContentLoaded", function () {
 
     setupLogin();
     setupGuestLogin();
-    setupIntro();
     setupNavigation();
     setupMobileBackNavigation();
     setupTransactionModal();
@@ -288,26 +284,8 @@ function setupGuestLogin() {
 
 
 /* =========================================================
-   INTRO
-========================================================= */
-
-function setupIntro() {
-    splashStartedAt = performance.now();
-}
-
-
-/* =========================================================
    SHOW / HIDE
 ========================================================= */
-
-function hideIntro() {
-    const intro =
-        document.getElementById("introScreen");
-    if (!intro || intro.classList.contains("hidden") || intro.classList.contains("is-leaving")) return;
-    intro.classList.add("is-leaving");
-    const duration = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? 0 : SPLASH_FADE_DURATION;
-    setTimeout(function () { intro.classList.add("hidden"); }, duration);
-}
 
 function completeStartup(destination) {
     if (destination === "app") {
@@ -318,10 +296,7 @@ function completeStartup(destination) {
         showLogin();
     }
 
-    const intro = document.getElementById("introScreen");
-    if (!intro || intro.classList.contains("hidden") || intro.classList.contains("is-leaving")) return;
-    const remaining = Math.max(0, SPLASH_MINIMUM_DURATION - (performance.now() - splashStartedAt));
-    setTimeout(hideIntro, remaining);
+    document.body.classList.remove("auth-pending");
 }
 
 
