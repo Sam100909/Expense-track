@@ -5,8 +5,8 @@
   "description": "A simple and modern personal expense tracker.",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#46474D",
-  "theme_color": "#46474D",
+  "background_color": "#ffffff",
+  "theme_color": "#ffffff",
   "orientation": "portrait",
   "icons": [
     {

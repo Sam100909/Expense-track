@@ -28,6 +28,8 @@ body.modal-open { overflow:hidden; }.topbar { align-items:center; }.greeting { f
 
 html {
     scroll-behavior: smooth;
+    background: #ffffff;
+    color-scheme: light;
 }
 
 body {
@@ -45,6 +47,13 @@ body {
 
     -webkit-font-smoothing: antialiased;
     overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+}
+
+body.dark,
+html:has(body.dark) {
+    background: #19191d;
+    color-scheme: dark;
 }
 
 button,
@@ -63,7 +72,7 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-    outline: 3px solid rgba(124, 92, 252, 0.22);
+    outline: 3px solid var(--primary);
     outline-offset: 2px;
 }
 
@@ -3266,7 +3275,8 @@ body.dark .currency-search {
 }
 
 /* Final overrides: placed after legacy responsive rules deliberately. */
-body.auth-pending { background:var(--background); }
+body.auth-pending { background:#ffffff; }
+body.auth-pending.dark { background:#19191d; }
 body.auth-pending .sidebar-user { visibility:hidden; }
 .greeting { color:var(--text); font-size:clamp(24px,3vw,34px); font-weight:760; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; letter-spacing:-.04em; }
 .topbar { align-items:center; flex-direction:row; flex-wrap:nowrap; }.topbar-left,.topbar-actions { min-width:0; }.topbar-actions { margin-left:auto; }.dashboard-today-date { white-space:nowrap; font-size:13px; }
@@ -3288,6 +3298,7 @@ body.dark .spending-label { color:var(--text-secondary); }
 
 .dashboard-spending-card .spending-legend { display:flex; flex-wrap:wrap; justify-content:center; gap:9px 14px; margin:2px auto 0; }
 .chart-legend-item { display:inline-flex; align-items:center; gap:7px; max-width:100%; color:var(--text-secondary); font-size:13px; font-weight:500; line-height:1.35; overflow-wrap:anywhere; }
+.chart-legend-item small { color:var(--text-tertiary); font-size:12px; font-weight:500; white-space:nowrap; }
 .chart-legend-item i { width:9px; height:9px; flex:0 0 9px; border-radius:50%; }
 body.dark .chart-legend-item { color:var(--text-secondary); }
 
@@ -3302,3 +3313,23 @@ body.dark .chart-legend-item { color:var(--text-secondary); }
 @media (max-width:760px) { .transaction-modal-card { width:min(450px,100%); padding:20px 18px; max-height:calc(100dvh - 28px); } .transaction-icon-action { width:42px; height:42px; } }
 
 .build-version { margin:26px 0 4px; color:var(--text-tertiary); font-size:11px; text-align:center; }
+
+/* Dashboard-only mobile viewport fit: other pages and every modal remain scrollable. */
+*, *::before, *::after { -webkit-tap-highlight-color: transparent; }
+@media (max-width:760px) {
+    body.dashboard-active { height:100dvh; overflow:hidden; }
+    body.dashboard-active .main-content { height:100dvh; display:flex; flex-direction:column; overflow:hidden; padding:clamp(12px,3.5vw,18px) 16px calc(96px + env(safe-area-inset-bottom)); }
+    body.dashboard-active .topbar { flex:0 0 auto; margin-bottom:clamp(8px,2.5vw,14px); }
+    body.dashboard-active #dashboardPage.active { flex:1 1 auto; min-height:0; height:auto; display:grid; grid-template-rows:auto minmax(0,1fr); gap:clamp(8px,2.5vw,14px); overflow:hidden; }
+    body.dashboard-active #dashboardPage .balance-card { min-height:0; margin:0; padding:clamp(15px,4vw,21px); }
+    body.dashboard-active #dashboardPage .balance-amount { font-size:clamp(31px,9.5vw,42px); }
+    body.dashboard-active #dashboardPage .balance-footer { margin-top:clamp(12px,3vw,18px); }
+    body.dashboard-active #dashboardPage .dashboard-spending-card { min-height:0; margin:0; padding:clamp(14px,3.5vw,18px); overflow:hidden; }
+    body.dashboard-active #dashboardPage .dashboard-spending-card .section-header { margin-bottom:clamp(6px,2vw,10px); }
+    body.dashboard-active #dashboardPage .dashboard-spending-card .doughnut-wrap { width:min(clamp(142px,31vh,220px),58vw); margin:0 auto clamp(6px,1.8vw,10px); }
+    body.dashboard-active #dashboardPage .dashboard-spending-card .spending-legend { max-height:clamp(54px,13vh,88px); overflow:auto; padding:0 2px; gap:6px 10px; }
+    body.dashboard-active #dashboardPage .chart-legend-item { font-size:12px; }
+    body.dashboard-active #dashboardPage .compact-empty { min-height:0; padding:clamp(12px,3vw,20px) 0; }
+    .mobile-nav-item:focus-visible,
+    .mobile-nav-add:focus-visible { outline:3px solid var(--primary); outline-offset:3px; }
+}

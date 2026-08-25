@@ -46,6 +46,7 @@ const state = {
     unsubscribeTransactions: null,
     guestMode: false,
     authResolved: false,
+    transactionsLoaded: false,
     currentPage: "dashboard",
     activeModal: null,
     editingTransactionId: null,
@@ -61,7 +62,8 @@ const state = {
     transactionSubmitting: false,
     pendingWriteCheck: 0,
     pendingUndo: null,
-    toastTimer: null
+    toastTimer: null,
+    greetingTimer: null
 };
 
 
@@ -112,11 +114,13 @@ document.addEventListener("DOMContentLoaded", function () {
     setupSettings();
 
     loadLocalSettings();
+    document.body.classList.add("dashboard-active");
+    scheduleGreetingBoundaryCheck();
     showApp();
     updateAll();
     applyLanguage(getLanguage());
     document.addEventListener("visibilitychange", function () {
-        if (!document.hidden) { updateTodayDateLabel(); updateGreeting(); }
+        if (!document.hidden) { updateTodayDateLabel(); updateGreeting(); scheduleGreetingBoundaryCheck(); }
     });
 
 });
@@ -136,6 +140,7 @@ onAuthStateChanged(auth, function (user) {
 
         state.currentUser = user;
         state.guestMode = false;
+        state.transactionsLoaded = false;
         state.nickname = "";
 
         updateUserProfile(user);
@@ -154,6 +159,7 @@ onAuthStateChanged(auth, function (user) {
             state.currentUser = null;
             state.nickname = "";
             state.transactions = [];
+            state.transactionsLoaded = true;
 
             if (state.unsubscribeTransactions) {
                 state.unsubscribeTransactions();
@@ -278,6 +284,7 @@ function setupGuestLogin() {
             state.guestMode = true;
             state.currentUser = null;
             state.transactions = loadGuestTransactions();
+            state.transactionsLoaded = true;
 
             completeStartup("app");
 
@@ -417,6 +424,8 @@ function loadFirestoreTransactions(userId) {
 
     }
 
+    state.transactionsLoaded = false;
+
     const transactionsRef =
         collection(
             db,
@@ -462,6 +471,8 @@ function loadFirestoreTransactions(userId) {
 
                         }
                     ).sort(sortTransactionsNewestFirst);
+
+                state.transactionsLoaded = true;
 
                 updatePendingWriteStatus(snapshot.metadata.hasPendingWrites);
                 updateAll();
@@ -1044,6 +1055,7 @@ function showPage(pageName, historyMode = "push") {
     const pageOrder = ["dashboard", "transactions", "budget", "converter", "settings"];
     const previousIndex = pageOrder.indexOf(state.currentPage), nextIndex = pageOrder.indexOf(pageName);
     state.currentPage = pageName;
+    document.body.classList.toggle("dashboard-active", pageName === "dashboard");
     updateDashboardControlsVisibility();
 
     document
@@ -2961,29 +2973,23 @@ function setupBalanceToggle() {
 
             state.balanceVisible =
                 !state.balanceVisible;
-
-
-            const icon =
-                document.getElementById(
-                    "balanceEyeIcon"
-                );
-
-
-            if (icon) {
-
-                icon.className =
-                    state.balanceVisible
-                        ? "fa-regular fa-eye"
-                        : "fa-regular fa-eye-slash";
-
-            }
-
-
-            updateDashboard();
+            localStorage.setItem("expense_balance_visible", String(state.balanceVisible));
+            updateBalanceVisibilityUI();
+            setMoney("balanceAmount", getAllTimeBalance());
 
         }
     );
 
+}
+
+function updateBalanceVisibilityUI() {
+    const button = document.getElementById("toggleBalanceButton");
+    const icon = document.getElementById("balanceEyeIcon");
+    if (icon) icon.className = state.balanceVisible ? "fa-regular fa-eye" : "fa-regular fa-eye-slash";
+    if (button) {
+        button.setAttribute("aria-pressed", String(state.balanceVisible));
+        button.setAttribute("aria-label", state.balanceVisible ? t("Hide balance") : t("Show balance"));
+    }
 }
 
 
@@ -3204,6 +3210,11 @@ function applyTheme(theme) {
         useDarkTheme
     );
 
+    const themeColor = document.querySelector('meta[name="theme-color"]');
+    if (themeColor) themeColor.setAttribute("content", useDarkTheme ? "#19191d" : "#ffffff");
+    const appleStatusBar = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+    if (appleStatusBar) appleStatusBar.setAttribute("content", useDarkTheme ? "black-translucent" : "default");
+
     if (
         theme === "dark"
     ) {
@@ -3296,15 +3307,32 @@ function updateGreeting() {
         new Date().getHours();
 
 
-    const greeting = hour < 12
+    const greeting = hour >= 5 && hour < 12
         ? "Good morning"
         : hour < 18
             ? "Good afternoon"
-            : "Good evening";
+            : hour < 22
+                ? "Good evening"
+                : "Good night";
 
     greetingElement.textContent =
         t(greeting) + ", " + getUserDisplayName(state.currentUser);
 
+}
+
+function scheduleGreetingBoundaryCheck() {
+    if (state.greetingTimer) clearTimeout(state.greetingTimer);
+    const now = new Date();
+    const next = new Date(now);
+    const boundaries = [5, 12, 18, 22, 24];
+    const nextHour = boundaries.find(function (hour) { return hour > now.getHours(); }) || 24;
+    next.setHours(nextHour, 0, 1, 0);
+    if (nextHour === 24) next.setDate(next.getDate() + 1);
+    state.greetingTimer = setTimeout(function () {
+        updateGreeting();
+        updateTodayDateLabel();
+        scheduleGreetingBoundaryCheck();
+    }, Math.max(1000, next.getTime() - Date.now()));
 }
 
 
@@ -3799,6 +3827,14 @@ function renderSpendingBreakdownLegacy() {
 }
 
 function updateDashboard() {
+    if (!state.authResolved) {
+        const balanceElement = document.getElementById("balanceAmount");
+        const statusElement = document.getElementById("balanceStatus");
+        if (balanceElement) balanceElement.textContent = "—";
+        if (statusElement) statusElement.textContent = "";
+        renderSpendingBreakdown();
+        return;
+    }
     const balance = getAllTimeBalance();
     setMoney("balanceAmount", balance);
     const status = document.getElementById("balanceStatus"); if (status) status.textContent = balance > 0 ? "Healthy" : balance === 0 ? "Balanced" : "Over budget";
@@ -3836,25 +3872,28 @@ function applySavedAccentColors() {
     const secondary = localStorage.getItem("expense_secondary_color");
     const primaryInput = document.getElementById("primaryColor"), secondaryInput = document.getElementById("secondaryColor");
     const hasCustomColors = localStorage.getItem("expense_has_custom_colors") === "true";
+    const defaultPrimary = "#7C5CFC", defaultSecondary = "#5CC8FF";
     if (hasCustomColors && primary && /^#[0-9a-f]{6}$/i.test(primary)) { document.documentElement.style.setProperty("--primary", primary); if (primaryInput) primaryInput.value = primary; }
-    else document.documentElement.style.setProperty("--primary", "#242628");
+    else { document.documentElement.style.setProperty("--primary", defaultPrimary); if (primaryInput) primaryInput.value = defaultPrimary; }
     if (hasCustomColors && secondary && /^#[0-9a-f]{6}$/i.test(secondary)) { document.documentElement.style.setProperty("--secondary", secondary); if (secondaryInput) secondaryInput.value = secondary; }
-    else document.documentElement.style.setProperty("--secondary", "#858889");
+    else { document.documentElement.style.setProperty("--secondary", defaultSecondary); if (secondaryInput) secondaryInput.value = defaultSecondary; }
 }
 
 function migrateLegacyThemeColors() {
     const primary = localStorage.getItem("expense_primary_color"), secondary = localStorage.getItem("expense_secondary_color");
-    const legacyPairs = [["#7c5cfc", "#5cc8ff"], ["#36383d", "#72757c"]];
+    const legacyPairs = [["#242628", "#858889"]];
     const normalized = [String(primary || "").toLowerCase(), String(secondary || "").toLowerCase()];
-    if (legacyPairs.some(function (pair) { return pair[0] === normalized[0] && pair[1] === normalized[1]; })) {
-        localStorage.setItem("expense_primary_color", "#242628");
-        localStorage.setItem("expense_secondary_color", "#858889");
+    if (localStorage.getItem("expense_has_custom_colors") !== "true" && legacyPairs.some(function (pair) { return pair[0] === normalized[0] && pair[1] === normalized[1]; })) {
+        localStorage.setItem("expense_primary_color", "#7C5CFC");
+        localStorage.setItem("expense_secondary_color", "#5CC8FF");
     }
 }
 
 function loadLocalSettings() {
     const currency = localStorage.getItem("expense_currency");
     if (currency) { state.currency = currency; const select = document.getElementById("currencySelect"); if (select) select.value = currency; }
+    state.balanceVisible = localStorage.getItem("expense_balance_visible") !== "false";
+    updateBalanceVisibilityUI();
     let appearance = localStorage.getItem("expense_appearance") || localStorage.getItem("expense_theme") || "light";
     if (appearance === "system") { appearance = "light"; localStorage.setItem("expense_appearance", appearance); }
     applyTheme(appearance);
@@ -3867,10 +3906,6 @@ function loadLocalSettings() {
 function getCategoryColor(category) {
     const hash = Array.from(String(category)).reduce(function (value, char) { return ((value << 5) - value + char.charCodeAt(0)) | 0; }, 0);
     const index = Math.abs(hash) % 6;
-    const savedPrimary = localStorage.getItem("expense_primary_color"), savedSecondary = localStorage.getItem("expense_secondary_color");
-    if (!(localStorage.getItem("expense_has_custom_colors") === "true" && /^#[0-9a-f]{6}$/i.test(savedPrimary || "") && /^#[0-9a-f]{6}$/i.test(savedSecondary || ""))) {
-        return (document.body.classList.contains("dark") ? ["#f1f1ef", "#d0d1d0", "#aeb0b0", "#858889", "#5f6264", "#3f4244"] : ["#242628", "#3f4244", "#5f6264", "#858889", "#aeb0b0", "#d0d1d0"])[index];
-    }
     const styles = getComputedStyle(document.documentElement);
     const base = index % 2 ? styles.getPropertyValue("--secondary").trim() : styles.getPropertyValue("--primary").trim();
     const match = /^#([0-9a-f]{6})$/i.exec(base); if (!match) return base;
@@ -3930,18 +3965,32 @@ const chartExternalLabels = {
 };
 
 function renderSpendingBreakdown() {
+    const empty = document.getElementById("spendingEmpty"), content = document.getElementById("spendingContent");
+    const dataIsReady = state.authResolved && (state.guestMode || !state.currentUser || state.transactionsLoaded);
+    if (!dataIsReady) {
+        if (empty) empty.classList.add("hidden");
+        if (content) content.classList.add("hidden");
+        return;
+    }
     const expenses = getSelectedMonthTransactions().filter(function (item) { return item.type === "expense"; });
     const totals = expenses.reduce(function (all, item) { const key = item.category || "Other"; all[key] = (all[key] || 0) + Number(item.amount || 0); return all; }, {});
     const entries = Object.entries(totals).sort(function (a, b) { return b[1] - a[1]; }), total = entries.reduce(function (sum, item) { return sum + item[1]; }, 0);
-    const empty = document.getElementById("spendingEmpty"), content = document.getElementById("spendingContent");
     if (empty) empty.classList.toggle("hidden", total > 0); if (content) content.classList.toggle("hidden", total <= 0);
-    if (!total || typeof Chart === "undefined") { if (state.spendingChart) { state.spendingChart.destroy(); state.spendingChart = null; } return; }
+    if (!total || typeof Chart === "undefined") return;
     document.getElementById("chartTotal").textContent = formatCurrency(total);
     const colors = entries.map(function (entry) { return getCategoryColor(entry[0]); });
     const legend = document.getElementById("spendingLegend");
-    if (legend) legend.innerHTML = entries.map(function (entry, index) { return '<span class="chart-legend-item"><i style="background:' + colors[index] + '"></i><span>' + escapeHTML(t(entry[0])) + '</span></span>'; }).join("");
-    if (state.spendingChart) state.spendingChart.destroy();
-    state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", data: { labels: entries.map(function (entry) { return entry[0]; }), datasets: [{ data: entries.map(function (entry) { return entry[1]; }), backgroundColor: colors, borderWidth: 0, borderRadius: 10, spacing: 2, hoverOffset: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "84%", animation: { duration: 260 }, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false } } } });
+    if (legend) legend.innerHTML = entries.map(function (entry, index) { const percentage = total > 0 ? (entry[1] / total) * 100 : 0; const label = Number.isInteger(percentage) ? String(percentage) : percentage.toFixed(1).replace(/\.0$/, ""); return '<span class="chart-legend-item"><i style="background:' + colors[index] + '"></i><span>' + escapeHTML(t(entry[0])) + '</span><small>' + label + '%</small></span>'; }).join("");
+    const labels = entries.map(function (entry) { return entry[0]; });
+    const values = entries.map(function (entry) { return entry[1]; });
+    if (state.spendingChart) {
+        state.spendingChart.data.labels = labels;
+        state.spendingChart.data.datasets[0].data = values;
+        state.spendingChart.data.datasets[0].backgroundColor = colors;
+        state.spendingChart.update("none");
+        return;
+    }
+    state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, borderRadius: 10, spacing: 2, hoverOffset: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "84%", animation: false, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false } } } });
 }
 
 /* =========================================================
@@ -4317,7 +4366,7 @@ const translations = {
 };
 
 Object.assign(translations.zh, {
-    "Welcome":"歡迎", "Good morning":"早安", "Good afternoon":"午安", "Good evening":"晚安", "Guest":"訪客", "Sign in":"登入", "Log out":"登出", "Continue with Google":"使用 Google 繼續", "Continue as Guest":"以訪客身分繼續", "Transaction":"交易", "Add transaction":"新增交易", "Save transaction":"儲存交易", "Please enter a valid amount":"請輸入有效金額", "Please select a category":"請選擇分類", "Please select a date":"請選擇日期", "Please login first":"請先登入", "Transaction added":"交易已新增", "Transaction updated":"交易已更新", "Failed to save transaction":"儲存交易失敗", "Failed to update transaction":"更新交易失敗", "Transaction deleted":"交易已刪除", "Transaction restored":"交易已還原", "Undo":"復原", "Saving…":"儲存中…", "Synced":"已同步", "Offline":"離線", "Sync failed":"同步失敗", "Saving":"儲存中", "No transactions for this filter":"此篩選條件沒有交易", "No transactions for":"沒有符合以下條件的交易：", "No expenses this month":"本月沒有支出", "Add an expense to see your category breakdown.":"新增支出後即可查看分類圖表。", "This month":"本月", "Expense Breakdown":"支出分類", "Category Budgets":"分類預算", "Sign in to manage category budgets":"登入以管理分類預算", "Budgets sync securely across your devices.":"預算會安全同步到你的裝置。", "Please enter a valid budget amount.":"請輸入有效的預算金額。", "Please select a category.":"請選擇分類。", "Failed to save category budget":"儲存分類預算失敗", "Failed to delete category budget":"刪除分類預算失敗", "Currency Converter":"匯率換算", "Reference rate":"參考匯率", "Last updated":"最後更新", "Ready":"準備完成", "Converted amount":"換算金額", "Exchange estimate":"匯率估算", "Choose currency":"選擇貨幣", "Search currency":"搜尋貨幣", "Swap currencies":"交換貨幣", "Reference rates only. Your bank, card provider, or transfer service may use a different rate.":"僅供參考；銀行、發卡機構或匯款服務的匯率可能不同。", "Nickname":"暱稱", "Shown in your Dashboard greeting":"顯示在儀表板問候語中", "Save":"儲存", "Appearance":"外觀", "Accent colors":"主題色彩", "Personalize the dashboard gradient":"自訂儀表板色彩", "Generate colors":"產生色彩", "Choose how the app looks":"選擇應用程式外觀", "Used for all transaction totals":"用於所有交易總計", "Select category":"選擇分類", "Add a note…":"新增備註…", "Search transactions":"搜尋交易", "Filter by type":"依類型篩選", "Filter by category":"依分類篩選", "Filter by date":"依日期篩選", "Show or hide balance":"顯示或隱藏餘額", "Close":"關閉", "Delete transaction":"刪除交易", "Edit transaction":"編輯交易", "Add Category Budget":"新增分類預算", "Edit Category Budget":"編輯分類預算", "No category budgets set":"尚未設定分類預算", "Add a category budget to track your spending.":"新增分類預算以追蹤支出。"
+    "Welcome":"歡迎", "Good morning":"早安", "Good afternoon":"午安", "Good evening":"晚上好", "Good night":"晚安", "Show balance":"顯示餘額", "Hide balance":"隱藏餘額", "Guest":"訪客", "Sign in":"登入", "Log out":"登出", "Continue with Google":"使用 Google 繼續", "Continue as Guest":"以訪客身分繼續", "Transaction":"交易", "Add transaction":"新增交易", "Save transaction":"儲存交易", "Please enter a valid amount":"請輸入有效金額", "Please select a category":"請選擇分類", "Please select a date":"請選擇日期", "Please login first":"請先登入", "Transaction added":"交易已新增", "Transaction updated":"交易已更新", "Failed to save transaction":"儲存交易失敗", "Failed to update transaction":"更新交易失敗", "Transaction deleted":"交易已刪除", "Transaction restored":"交易已還原", "Undo":"復原", "Saving…":"儲存中…", "Synced":"已同步", "Offline":"離線", "Sync failed":"同步失敗", "Saving":"儲存中", "No transactions for this filter":"此篩選條件沒有交易", "No transactions for":"沒有符合以下條件的交易：", "No expenses this month":"本月沒有支出", "Add an expense to see your category breakdown.":"新增支出後即可查看分類圖表。", "This month":"本月", "Expense Breakdown":"支出分類", "Category Budgets":"分類預算", "Sign in to manage category budgets":"登入以管理分類預算", "Budgets sync securely across your devices.":"預算會安全同步到你的裝置。", "Please enter a valid budget amount.":"請輸入有效的預算金額。", "Please select a category.":"請選擇分類。", "Failed to save category budget":"儲存分類預算失敗", "Failed to delete category budget":"刪除分類預算失敗", "Currency Converter":"匯率換算", "Reference rate":"參考匯率", "Last updated":"最後更新", "Ready":"準備完成", "Converted amount":"換算金額", "Exchange estimate":"匯率估算", "Choose currency":"選擇貨幣", "Search currency":"搜尋貨幣", "Swap currencies":"交換貨幣", "Reference rates only. Your bank, card provider, or transfer service may use a different rate.":"僅供參考；銀行、發卡機構或匯款服務的匯率可能不同。", "Nickname":"暱稱", "Shown in your Dashboard greeting":"顯示在儀表板問候語中", "Save":"儲存", "Appearance":"外觀", "Accent colors":"主題色彩", "Personalize the dashboard gradient":"自訂儀表板色彩", "Generate colors":"產生色彩", "Choose how the app looks":"選擇應用程式外觀", "Used for all transaction totals":"用於所有交易總計", "Select category":"選擇分類", "Add a note…":"新增備註…", "Search transactions":"搜尋交易", "Filter by type":"依類型篩選", "Filter by category":"依分類篩選", "Filter by date":"依日期篩選", "Show or hide balance":"顯示或隱藏餘額", "Close":"關閉", "Delete transaction":"刪除交易", "Edit transaction":"編輯交易", "Add Category Budget":"新增分類預算", "Edit Category Budget":"編輯分類預算", "No category budgets set":"尚未設定分類預算", "Add a category budget to track your spending.":"新增分類預算以追蹤支出。"
 });
 
 function getLanguage() { return localStorage.getItem("expense_language") === "zh" ? "zh" : "en"; }
