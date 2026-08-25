@@ -1,12 +1,12 @@
 // Bump this value whenever app-shell files change. The cache-first fetch
 // strategy otherwise continues serving an older HTML/JavaScript bundle.
-const CACHE_NAME = "expense-track-v30";
+const CACHE_NAME = "expense-track-v31";
 
 const FILES_TO_CACHE = [
 "./",
 "./index.html",
-"./style.css?v=30",
-"./script.js?v=30",
+"./style.css?v=31",
+"./script.js?v=31",
 "./firebase-config.js",
 "./manifest.json",
 "./app-icon.png",

@@ -3895,6 +3895,18 @@ function renderSpendingLabels(entries, colors) {
     }); });
 }
 
+function getExternalLabelGeometry(centerX, centerY, outerRadius, canvasWidth, chartTop, chartBottom, side, position, count, textWidth) {
+    const gap = 16, edge = centerX + side * outerRadius, elbowX = centerX + side * (outerRadius + 18);
+    const labelY = chartTop + 16 + ((position + 1) / (count + 1)) * (chartBottom - chartTop - 32);
+    const textX = side > 0 ? Math.max(edge + gap, Math.min(canvasWidth - textWidth - 6, elbowX + 8)) : Math.min(edge - gap, Math.max(textWidth + 6, elbowX - 8));
+    return { edge, elbowX, labelY, textX, left: side > 0 ? textX : textX - textWidth, right: side > 0 ? textX + textWidth : textX };
+}
+
+function assertExternalLabelGeometry(geometry, centerX, outerRadius, side) {
+    const boundary = centerX + side * outerRadius;
+    return side > 0 ? geometry.left >= boundary + 16 : geometry.right <= boundary - 16;
+}
+
 const chartExternalLabels = {
     id: "chartExternalLabels",
     afterDatasetsDraw: function (chart, args, options) {
@@ -3908,13 +3920,12 @@ const chartExternalLabels = {
         sides.forEach(function (side, sideIndex) {
             side.sort(function (a, b) { return Math.sin(a.angle) - Math.sin(b.angle); });
             side.forEach(function (item, position) {
-                const arc = item.arc, direction = sideIndex ? 1 : -1, radius = arc.outerRadius + 18;
-                const startX = arc.x + Math.cos(item.angle) * arc.outerRadius, startY = arc.y + Math.sin(item.angle) * arc.outerRadius;
-                const elbowX = arc.x + Math.cos(item.angle) * radius, elbowY = arc.y + Math.sin(item.angle) * radius;
-                const labelY = chart.chartArea.top + 16 + ((position + 1) / (side.length + 1)) * (chart.chartArea.bottom - chart.chartArea.top - 32);
-                const textX = elbowX + direction * 8, endX = textX + direction * 5;
-                ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(elbowX, elbowY); ctx.lineTo(endX, labelY); ctx.stroke();
-                ctx.textAlign = sideIndex ? "left" : "right"; ctx.textBaseline = "middle"; ctx.fillText(t(labels[item.index] || ""), textX, labelY);
+                const arc = item.arc, direction = sideIndex ? 1 : -1, text = t(labels[item.index] || ""), textWidth = ctx.measureText(text).width;
+                const geometry = getExternalLabelGeometry(arc.x, arc.y, arc.outerRadius, chart.width, chart.chartArea.top, chart.chartArea.bottom, direction, position, side.length, textWidth);
+                if (!assertExternalLabelGeometry(geometry, arc.x, arc.outerRadius, direction)) return;
+                const startX = geometry.edge, startY = arc.y, lineEndX = direction > 0 ? geometry.textX - 5 : geometry.textX + 5;
+                ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(geometry.elbowX, startY); ctx.lineTo(lineEndX, geometry.labelY); ctx.stroke();
+                ctx.textAlign = direction > 0 ? "left" : "right"; ctx.textBaseline = "middle"; ctx.fillText(text, geometry.textX, geometry.labelY);
             });
         });
         ctx.restore();
@@ -3930,8 +3941,11 @@ function renderSpendingBreakdown() {
     if (!total || typeof Chart === "undefined") { if (state.spendingChart) { state.spendingChart.destroy(); state.spendingChart = null; } return; }
     document.getElementById("chartTotal").textContent = formatCurrency(total);
     const colors = entries.map(function (entry) { return getCategoryColor(entry[0]); }); document.getElementById("spendingLabels").innerHTML = "";
+    const measureCanvas = document.createElement("canvas"), measureContext = measureCanvas.getContext("2d");
+    measureContext.font = "500 14px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
+    const labelPadding = Math.max(104, Math.ceil(Math.max.apply(null, entries.map(function (entry) { return measureContext.measureText(t(entry[0])).width; })) + 28));
     if (state.spendingChart) state.spendingChart.destroy();
-    state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", plugins: [chartExternalLabels], data: { labels: entries.map(function (entry) { return entry[0]; }), datasets: [{ data: entries.map(function (entry) { return entry[1]; }), backgroundColor: colors, borderWidth: 0, borderRadius: 10, spacing: 2, hoverOffset: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "84%", layout: { padding: { left: 100, right: 100, top: 18, bottom: 18 } }, animation: { duration: 260 }, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false }, chartExternalLabels: { labels: entries.map(function (entry) { return entry[0]; }) } } } });
+    state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", plugins: [chartExternalLabels], data: { labels: entries.map(function (entry) { return entry[0]; }), datasets: [{ data: entries.map(function (entry) { return entry[1]; }), backgroundColor: colors, borderWidth: 0, borderRadius: 10, spacing: 2, hoverOffset: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "84%", layout: { padding: { left: labelPadding, right: labelPadding, top: 18, bottom: 18 } }, animation: { duration: 260 }, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false }, chartExternalLabels: { labels: entries.map(function (entry) { return entry[0]; }) } } } });
 }
 
 /* =========================================================
