@@ -3334,3 +3334,63 @@ body.dark .chart-legend-item { color:var(--text-secondary); }
     .mobile-nav-item:focus-visible,
     .mobile-nav-add:focus-visible { outline:3px solid var(--primary); outline-offset:3px; }
 }
+
+/* Transaction modal: compact fixed dialog without scrolling or negative footer overflow. */
+html.transaction-modal-open,
+body.modal-open { overscroll-behavior: none; }
+html.transaction-modal-open,
+html.transaction-modal-open body { overflow:hidden; }
+#transactionModal { overflow:hidden; overscroll-behavior:contain; }
+#transactionModal .transaction-modal-card,
+#transactionModal .transaction-modal-card * { min-width:0; max-width:100%; box-sizing:border-box; }
+#transactionModal .transaction-modal-card {
+    width:min(calc(100vw - 40px),420px);
+    max-width:calc(100vw - 40px);
+    max-height:calc(var(--transaction-modal-viewport-height, 100dvh) - 40px);
+    padding:16px;
+    overflow:hidden;
+    scroll-padding-bottom:0;
+    overscroll-behavior:contain;
+}
+#transactionModal .modal-header { margin-bottom:12px; gap:12px; }
+#transactionModal .modal-header h2 { font-size:21px; line-height:1.2; }
+#transactionModal #transactionForm { display:grid; gap:10px; overflow:hidden; }
+#transactionModal .form-group { gap:5px; }
+#transactionModal .form-group > label { line-height:1.2; }
+#transactionModal .type-selector { gap:7px; }
+#transactionModal .type-button { min-height:44px; }
+#transactionModal .icon-button { min-width:44px; min-height:44px; }
+#transactionModal .form-input { min-height:44px; }
+#transactionModal textarea.form-input { height:52px; min-height:52px; padding:10px 12px; resize:none; }
+#transactionModal .amount-input { min-height:52px; padding:0 12px; }
+#transactionModal .amount-input input {
+    min-width:0;
+    border:0 !important;
+    outline:0 !important;
+    box-shadow:none !important;
+    background:transparent !important;
+    appearance:textfield;
+    -moz-appearance:textfield;
+}
+#transactionModal .amount-input input::-webkit-outer-spin-button,
+#transactionModal .amount-input input::-webkit-inner-spin-button { margin:0; -webkit-appearance:none; }
+#transactionModal .amount-input:focus-within { border-color:color-mix(in srgb, var(--primary) 52%, var(--border)); box-shadow:0 0 0 3px color-mix(in srgb, var(--primary) 12%, transparent); }
+#transactionModal .transaction-submit-area {
+    position:static;
+    bottom:auto;
+    width:100%;
+    margin:2px 0 0;
+    padding:10px 0 0;
+    border-top:1px solid var(--border);
+    background:transparent;
+}
+#transactionModal .transaction-submit-area .primary-button { min-height:44px; }
+#transactionModal.keyboard-open {
+    inset:var(--transaction-modal-viewport-top, 0px) 0 auto;
+    height:var(--transaction-modal-viewport-height, 100dvh);
+    padding:12px 20px;
+}
+#transactionModal.keyboard-open .transaction-modal-card { max-height:calc(var(--transaction-modal-viewport-height, 100dvh) - 24px); padding:12px; }
+#transactionModal.keyboard-open .modal-header { margin-bottom:8px; }
+#transactionModal.keyboard-open #transactionForm { gap:6px; }
+#transactionModal.keyboard-open textarea.form-input { height:44px; min-height:44px; }

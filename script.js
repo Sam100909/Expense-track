@@ -1283,6 +1283,8 @@ function setupTransactionModal() {
 
     if (modal) {
 
+        setupTransactionModalViewport(modal);
+
         modal.addEventListener(
             "click",
             function (event) {
@@ -1338,6 +1340,22 @@ function setupTransactionModal() {
 
     }
 
+}
+
+function setupTransactionModalViewport(modal) {
+    const syncViewport = function () {
+        if (modal.classList.contains("hidden")) return;
+        const viewport = window.visualViewport;
+        const viewportHeight = Math.round(viewport ? viewport.height : window.innerHeight);
+        const viewportTop = Math.round(viewport ? viewport.offsetTop : 0);
+        modal.style.setProperty("--transaction-modal-viewport-height", viewportHeight + "px");
+        modal.style.setProperty("--transaction-modal-viewport-top", viewportTop + "px");
+        modal.classList.toggle("keyboard-open", Boolean(viewport && viewport.height < window.innerHeight - 120));
+    };
+    window.visualViewport?.addEventListener("resize", syncViewport);
+    window.visualViewport?.addEventListener("scroll", syncViewport);
+    modal.addEventListener("focusin", syncViewport);
+    modal.addEventListener("transitionend", syncViewport);
 }
 
 
@@ -1464,7 +1482,13 @@ function displayTransactionModal(type, transaction = null) {
     document.getElementById("transactionViewModal")?.classList.add("hidden");
     modal.classList.remove("hidden");
     document.body.classList.add("modal-open");
+    document.documentElement.classList.add("transaction-modal-open");
     state.activeModal = "transaction";
+
+    const viewport = window.visualViewport;
+    modal.style.setProperty("--transaction-modal-viewport-height", Math.round(viewport ? viewport.height : window.innerHeight) + "px");
+    modal.style.setProperty("--transaction-modal-viewport-top", Math.round(viewport ? viewport.offsetTop : 0) + "px");
+    modal.classList.toggle("keyboard-open", Boolean(viewport && viewport.height < window.innerHeight - 120));
 
 
     setTimeout(
@@ -1512,6 +1536,7 @@ function hideTransactionModal() {
     state.activeModal = null;
     state.editingTransactionId = null;
     document.body.classList.remove("modal-open");
+    document.documentElement.classList.remove("transaction-modal-open");
     setTransactionSubmitting(false);
 
 }
