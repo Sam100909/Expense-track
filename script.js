@@ -3839,12 +3839,23 @@ function applySavedAccentColors() {
     if (secondary && /^#[0-9a-f]{6}$/i.test(secondary)) { document.documentElement.style.setProperty("--secondary", secondary); if (secondaryInput) secondaryInput.value = secondary; }
 }
 
+function migrateLegacyThemeColors() {
+    const primary = localStorage.getItem("expense_primary_color"), secondary = localStorage.getItem("expense_secondary_color");
+    const legacyPairs = [["#7c5cfc", "#5cc8ff"], ["#36383d", "#72757c"]];
+    const normalized = [String(primary || "").toLowerCase(), String(secondary || "").toLowerCase()];
+    if (legacyPairs.some(function (pair) { return pair[0] === normalized[0] && pair[1] === normalized[1]; })) {
+        localStorage.setItem("expense_primary_color", "#242628");
+        localStorage.setItem("expense_secondary_color", "#858889");
+    }
+}
+
 function loadLocalSettings() {
     const currency = localStorage.getItem("expense_currency");
     if (currency) { state.currency = currency; const select = document.getElementById("currencySelect"); if (select) select.value = currency; }
     let appearance = localStorage.getItem("expense_appearance") || localStorage.getItem("expense_theme") || "light";
     if (appearance === "system") { appearance = "light"; localStorage.setItem("expense_appearance", appearance); }
     applyTheme(appearance);
+    migrateLegacyThemeColors();
     applySavedAccentColors();
     document.querySelectorAll("[data-theme]").forEach(function (button) { button.classList.toggle("active", button.dataset.theme === appearance); });
 }
@@ -3881,6 +3892,32 @@ function renderSpendingLabels(entries, colors) {
     }); });
 }
 
+const chartExternalLabels = {
+    id: "chartExternalLabels",
+    afterDatasetsDraw: function (chart, args, options) {
+        const meta = chart.getDatasetMeta(0), labels = options.labels || [], ctx = chart.ctx;
+        const sides = [[], []];
+        meta.data.forEach(function (arc, index) {
+            const angle = (arc.startAngle + arc.endAngle) / 2;
+            (Math.cos(angle) >= 0 ? sides[1] : sides[0]).push({ arc, index, angle });
+        });
+        ctx.save(); ctx.font = "500 14px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif"; ctx.fillStyle = getComputedStyle(document.body).getPropertyValue("--text-secondary").trim(); ctx.strokeStyle = getComputedStyle(document.body).getPropertyValue("--border").trim(); ctx.lineWidth = 1;
+        sides.forEach(function (side, sideIndex) {
+            side.sort(function (a, b) { return Math.sin(a.angle) - Math.sin(b.angle); });
+            side.forEach(function (item, position) {
+                const arc = item.arc, direction = sideIndex ? 1 : -1, radius = arc.outerRadius + 18;
+                const startX = arc.x + Math.cos(item.angle) * arc.outerRadius, startY = arc.y + Math.sin(item.angle) * arc.outerRadius;
+                const elbowX = arc.x + Math.cos(item.angle) * radius, elbowY = arc.y + Math.sin(item.angle) * radius;
+                const labelY = chart.chartArea.top + 16 + ((position + 1) / (side.length + 1)) * (chart.chartArea.bottom - chart.chartArea.top - 32);
+                const textX = elbowX + direction * 8, endX = textX + direction * 5;
+                ctx.beginPath(); ctx.moveTo(startX, startY); ctx.lineTo(elbowX, elbowY); ctx.lineTo(endX, labelY); ctx.stroke();
+                ctx.textAlign = sideIndex ? "left" : "right"; ctx.textBaseline = "middle"; ctx.fillText(t(labels[item.index] || ""), textX, labelY);
+            });
+        });
+        ctx.restore();
+    }
+};
+
 function renderSpendingBreakdown() {
     const expenses = getSelectedMonthTransactions().filter(function (item) { return item.type === "expense"; });
     const totals = expenses.reduce(function (all, item) { const key = item.category || "Other"; all[key] = (all[key] || 0) + Number(item.amount || 0); return all; }, {});
@@ -3889,9 +3926,9 @@ function renderSpendingBreakdown() {
     if (empty) empty.classList.toggle("hidden", total > 0); if (content) content.classList.toggle("hidden", total <= 0);
     if (!total || typeof Chart === "undefined") { if (state.spendingChart) { state.spendingChart.destroy(); state.spendingChart = null; } return; }
     document.getElementById("chartTotal").textContent = formatCurrency(total);
-    const colors = entries.map(function (entry) { return getCategoryColor(entry[0]); }); renderSpendingLabels(entries, colors);
+    const colors = entries.map(function (entry) { return getCategoryColor(entry[0]); }); document.getElementById("spendingLabels").innerHTML = "";
     if (state.spendingChart) state.spendingChart.destroy();
-    state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", data: { labels: entries.map(function (entry) { return entry[0]; }), datasets: [{ data: entries.map(function (entry) { return entry[1]; }), backgroundColor: colors, borderWidth: 0, borderRadius: 10, spacing: 2, hoverOffset: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "84%", animation: { duration: 260 }, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false } } } });
+    state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", plugins: [chartExternalLabels], data: { labels: entries.map(function (entry) { return entry[0]; }), datasets: [{ data: entries.map(function (entry) { return entry[1]; }), backgroundColor: colors, borderWidth: 0, borderRadius: 10, spacing: 2, hoverOffset: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "84%", layout: { padding: { left: 100, right: 100, top: 18, bottom: 18 } }, animation: { duration: 260 }, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false }, chartExternalLabels: { labels: entries.map(function (entry) { return entry[0]; }) } } } });
 }
 
 /* =========================================================

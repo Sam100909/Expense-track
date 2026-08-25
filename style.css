@@ -3277,14 +3277,14 @@ body.auth-pending .sidebar-user { visibility:hidden; }
 
 /* Doughnut chart: compact ring with protected label gutters. */
 .dashboard-spending-card .spending-content { display:block; }
-.dashboard-spending-card .doughnut-wrap { width:min(236px,72vw); margin:14px auto 8px; overflow:visible; }
+.dashboard-spending-card .doughnut-wrap { width:min(440px,100%); margin:14px auto 8px; overflow:visible; }
 .dashboard-spending-card .doughnut-center { inset:38%; }
 .dashboard-spending-card .doughnut-center strong { font-size:clamp(16px,2vw,20px); }
 .spending-labels { overflow:visible; }
 .spending-label { max-width:86px; color:var(--text-secondary); font-size:12px; font-weight:500; line-height:1.25; }
 .spending-label::before { width:12px; opacity:.7; }
 body.dark .spending-label { color:var(--text-secondary); }
-@media (max-width:760px) { .dashboard-spending-card .doughnut-wrap { width:min(210px,64vw); margin:18px auto 12px; } .spending-label { max-width:68px; font-size:11px; } .spending-label::before { width:8px; } }
+@media (max-width:760px) { .dashboard-spending-card .doughnut-wrap { width:100%; margin:18px auto 12px; } .spending-label { max-width:68px; font-size:11px; } .spending-label::before { width:8px; } }
 
 /* Transaction action icons and compact centered transaction modal. */
 .transaction-row-actions { gap:6px; }
