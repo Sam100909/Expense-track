@@ -1,6 +1,6 @@
 // Bump this value whenever app-shell files change. The cache-first fetch
 // strategy otherwise continues serving an older HTML/JavaScript bundle.
-const CACHE_NAME = "expense-track-v24";
+const CACHE_NAME = "expense-track-v28";
 
 const FILES_TO_CACHE = [
 "./",

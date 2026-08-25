@@ -1418,9 +1418,7 @@ function displayTransactionModal(type, transaction = null) {
     const title = modal.querySelector("h2");
     const submitButton = document.getElementById("transactionSubmitButton");
 
-    if (title) {
-        title.textContent = transaction ? "Edit transaction" : (type === "income" ? "Add Income" : "Add Expense");
-    }
+    if (title) title.textContent = getTransactionModalTitle();
 
     if (submitButton) {
         submitButton.innerHTML = transaction
@@ -1637,7 +1635,15 @@ function setTransactionType(type) {
     if (submitButton && !state.editingTransactionId && !state.transactionSubmitting) {
         submitButton.innerHTML = '<i class="fa-solid fa-check"></i> ' + (state.currentType === "income" ? "Add Income" : "Add Expense");
     }
+    const title = document.querySelector("#transactionModal h2");
+    if (title && !document.getElementById("transactionModal")?.classList.contains("hidden")) title.textContent = getTransactionModalTitle();
 
+}
+
+function getTransactionModalTitle() {
+    const income = state.currentType === "income";
+    if (getLanguage() === "zh") return state.editingTransactionId ? (income ? "編輯收入" : "編輯支出") : (income ? "新增收入" : "新增支出");
+    return state.editingTransactionId ? (income ? "Edit Income" : "Edit Expense") : (income ? "Add Income" : "Add Expense");
 }
 
 
@@ -2725,6 +2731,7 @@ function setupSettings() {
                         applyTheme(
                             theme
                         );
+                        renderSpendingBreakdown();
 
 
                     }
@@ -2860,11 +2867,11 @@ function setupSettings() {
             function () {
 
                 const colors = [
-                    ["#7C5CFC", "#5CC8FF"],
-                    ["#00A896", "#02C39A"],
-                    ["#FF6B6B", "#FFB86B"],
-                    ["#5B8DEF", "#8A5CF6"],
-                    ["#E056FD", "#686DE0"]
+                    ["#36383D", "#72757C"],
+                    ["#242628", "#5F6264"],
+                    ["#3F4244", "#858889"],
+                    ["#4A4D50", "#AEB0B0"],
+                    ["#2C2F32", "#D0D1D0"]
                 ];
 
 
@@ -3759,8 +3766,13 @@ function renderAllTransactions() {
             const row = document.createElement("article"), amountClass = item.type === "income" ? "income" : "expense";
             row.className = "transaction-item compact-transaction " + amountClass;
             row.innerHTML = '<div class="transaction-info"><strong>' + escapeHTML(item.category || "Other") + '</strong><span>' + escapeHTML(item.note || item.type) + '</span></div><strong class="transaction-amount ' + amountClass + '">' + (item.type === "income" ? "+" : "−") + formatCurrency(item.amount) + '</strong><div class="transaction-row-actions"><button type="button" class="text-button" data-edit-transaction="' + escapeHTML(item.id) + '">Edit</button><button type="button" class="text-button transaction-delete" data-delete-transaction="' + escapeHTML(item.id) + '">Delete</button></div>';
-            row.querySelector("[data-edit-transaction]").addEventListener("click", function () { openTransactionModal(item.type, item); });
-            row.querySelector("[data-delete-transaction]").addEventListener("click", function () { deleteTransaction(item.id); });
+            row.querySelector(".transaction-info span")?.remove();
+            const editButton = row.querySelector("[data-edit-transaction]"), deleteButton = row.querySelector("[data-delete-transaction]");
+            editButton.className = "transaction-icon-action"; deleteButton.className = "transaction-icon-action transaction-delete";
+            editButton.setAttribute("aria-label", t("Edit transaction")); editButton.title = t("Edit transaction"); editButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Z M13.5 6.5l4 4"/></svg>';
+            deleteButton.setAttribute("aria-label", t("Delete transaction")); deleteButton.title = t("Delete transaction"); deleteButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16 M10 11v6 M14 11v6 M9 7l1-2h4l1 2 M6 7l1 13h10l1-13"/></svg>';
+            editButton.addEventListener("click", function (event) { event.stopPropagation(); openTransactionModal(item.type, item); });
+            deleteButton.addEventListener("click", function (event) { event.stopPropagation(); deleteTransaction(item.id); });
             group.appendChild(row);
         });
         container.appendChild(group);
@@ -3779,7 +3791,7 @@ function renderSpendingBreakdownLegacy() {
     if (empty) empty.classList.toggle("hidden", total > 0); if (content) content.classList.toggle("hidden", total <= 0);
     if (!total || typeof Chart === "undefined") { if (state.spendingChart) { state.spendingChart.destroy(); state.spendingChart = null; } return; }
     document.getElementById("chartTotal").textContent = formatCurrency(total);
-    const colors = ["#7c5cfc", "#5cc8ff", "#16a085", "#f6a64b", "#e98175", "#5975d9", "#ae70c9", "#84b66a"];
+    const colors = entries.map(function (entry) { return getCategoryColor(entry[0]); });
     const legend = document.getElementById("spendingLegend"); legend.innerHTML = entries.map(function (entry, index) { const percent = Math.round(entry[1] / total * 100); return '<div class="legend-item"><span class="legend-dot" style="background:' + colors[index % colors.length] + '"></span><span>' + escapeHTML(entry[0]) + '</span><strong>' + formatCurrency(entry[1]) + '<small> · ' + percent + '%</small></strong></div>'; }).join("");
     if (state.spendingChart) state.spendingChart.destroy();
     state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", data: { labels: entries.map(function (entry) { return entry[0]; }), datasets: [{ data: entries.map(function (entry) { return entry[1]; }), backgroundColor: entries.map(function (_, index) { return colors[index % colors.length]; }), borderWidth: 0, borderRadius: 12, spacing: 2, hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "74%", animation: { duration: 0 }, transitions: { active: { animation: { duration: 140 } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (ctx) { return ctx.label + ": " + formatCurrency(ctx.raw); } } } } } });
@@ -3839,13 +3851,20 @@ function loadLocalSettings() {
 
 
 function getCategoryColor(category) {
-    const primary = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#36383d";
     const hash = Array.from(String(category)).reduce(function (value, char) { return ((value << 5) - value + char.charCodeAt(0)) | 0; }, 0);
-    const offset = Math.abs(hash) % 7, base = /^#([0-9a-f]{6})$/i.exec(primary);
-    if (!base) return primary;
-    const value = parseInt(base[1], 16), r = value >> 16, g = (value >> 8) & 255, b = value & 255;
-    const hue = ((Math.atan2(Math.sqrt(3) * (g - b), 2 * r - g - b) * 180 / Math.PI) + 360) % 360;
-    return "hsl(" + Math.round((hue + (offset - 3) * 8 + 360) % 360) + " " + (18 + offset * 3) + "% " + (document.body.classList.contains("dark") ? 42 + offset * 4 : 29 + offset * 6) + "%)";
+    const index = Math.abs(hash) % 6;
+    const savedPrimary = localStorage.getItem("expense_primary_color"), savedSecondary = localStorage.getItem("expense_secondary_color");
+    if (!(/^#[0-9a-f]{6}$/i.test(savedPrimary || "") && /^#[0-9a-f]{6}$/i.test(savedSecondary || ""))) {
+        return (document.body.classList.contains("dark") ? ["#f1f1ef", "#d0d1d0", "#aeb0b0", "#858889", "#5f6264", "#3f4244"] : ["#242628", "#3f4244", "#5f6264", "#858889", "#aeb0b0", "#d0d1d0"])[index];
+    }
+    const styles = getComputedStyle(document.documentElement);
+    const base = index % 2 ? styles.getPropertyValue("--secondary").trim() : styles.getPropertyValue("--primary").trim();
+    const match = /^#([0-9a-f]{6})$/i.exec(base); if (!match) return base;
+    const value = parseInt(match[1], 16), r = value >> 16, g = (value >> 8) & 255, b = value & 255;
+    const max = Math.max(r, g, b), min = Math.min(r, g, b), hue = ((Math.atan2(Math.sqrt(3) * (g - b), 2 * r - g - b) * 180 / Math.PI) + 360) % 360;
+    const saturation = max === min ? 0 : ((max - min) / (255 - Math.abs(max + min - 255))) * 100;
+    const lightness = ((max + min) / 510) * 100 + (index - 2.5) * 8;
+    return "hsl(" + Math.round(hue) + " " + Math.round(Math.min(85, Math.max(18, saturation))) + "% " + Math.round(Math.min(78, Math.max(24, lightness))) + "%)";
 }
 
 function renderSpendingLabels(entries, colors) {
@@ -3872,7 +3891,7 @@ function renderSpendingBreakdown() {
     document.getElementById("chartTotal").textContent = formatCurrency(total);
     const colors = entries.map(function (entry) { return getCategoryColor(entry[0]); }); renderSpendingLabels(entries, colors);
     if (state.spendingChart) state.spendingChart.destroy();
-    state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", data: { labels: entries.map(function (entry) { return entry[0]; }), datasets: [{ data: entries.map(function (entry) { return entry[1]; }), backgroundColor: colors, borderWidth: 0, borderRadius: 12, spacing: 2, hoverOffset: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "74%", animation: { duration: 260 }, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false } } } });
+    state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", data: { labels: entries.map(function (entry) { return entry[0]; }), datasets: [{ data: entries.map(function (entry) { return entry[1]; }), backgroundColor: colors, borderWidth: 0, borderRadius: 10, spacing: 2, hoverOffset: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "84%", animation: { duration: 260 }, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false } } } });
 }
 
 /* =========================================================
@@ -4259,6 +4278,7 @@ function applyLanguage(language) {
     localStorage.setItem("expense_language", language === "zh" ? "zh" : "en");
     const select = document.getElementById("languageSelect"); if (select) select.value = getLanguage();
     updateAll(); updateTodayDateLabel();
+    const modalTitle = document.querySelector("#transactionModal:not(.hidden) h2"); if (modalTitle) modalTitle.textContent = getTransactionModalTitle();
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
     nodes.forEach(function (node) { const raw = node.__sourceText || node.nodeValue; node.__sourceText = raw; const trimmed = raw.trim(), translated = t(trimmed); node.nodeValue = raw.replace(trimmed, translated); });

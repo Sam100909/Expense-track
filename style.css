@@ -3274,3 +3274,24 @@ body.auth-pending .sidebar-user { visibility:hidden; }
 .modal { align-items:center; padding:max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); }.modal-card { width:min(520px,100%); max-height:calc(100dvh - 32px); }.transaction-modal-card { scroll-padding-bottom:86px; }.transaction-submit-area { background:var(--surface-solid); }
 .spending-label { max-width:70px; }.spending-label::before { right:100%; }.spending-label.label-left::before { right:auto; left:100%; }
 @media (max-width:760px) { .greeting { font-size:clamp(20px,5.4vw,26px); } .dashboard-today-date { font-size:10px; } .spending-label { max-width:50px; font-size:9px; } }
+
+/* Doughnut chart: compact ring with protected label gutters. */
+.dashboard-spending-card .spending-content { display:block; }
+.dashboard-spending-card .doughnut-wrap { width:min(236px,72vw); margin:14px auto 8px; overflow:visible; }
+.dashboard-spending-card .doughnut-center { inset:38%; }
+.dashboard-spending-card .doughnut-center strong { font-size:clamp(16px,2vw,20px); }
+.spending-labels { overflow:visible; }
+.spending-label { max-width:86px; color:var(--text-secondary); font-size:12px; font-weight:500; line-height:1.25; }
+.spending-label::before { width:12px; opacity:.7; }
+body.dark .spending-label { color:var(--text-secondary); }
+@media (max-width:760px) { .dashboard-spending-card .doughnut-wrap { width:min(210px,64vw); margin:18px auto 12px; } .spending-label { max-width:68px; font-size:11px; } .spending-label::before { width:8px; } }
+
+/* Transaction action icons and compact centered transaction modal. */
+.transaction-row-actions { gap:6px; }
+.transaction-icon-action { width:40px; height:40px; display:grid; place-items:center; padding:0; border:0; border-radius:11px; color:var(--text-secondary); background:var(--surface-soft); }
+.transaction-icon-action:hover,.transaction-icon-action:focus-visible { color:var(--text); background:color-mix(in srgb,var(--primary) 12%,var(--surface-soft)); }
+.transaction-icon-action.transaction-delete { color:var(--danger); }
+.transaction-icon-action svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.transaction-modal-card { width:min(450px,100%); max-height:calc(100dvh - 40px); padding:23px; }
+.transaction-modal-card .modal-header { margin-bottom:20px; }.transaction-modal-card .form-group { gap:7px; }.transaction-modal-card .amount-input { min-height:50px; }
+@media (max-width:760px) { .transaction-modal-card { width:min(450px,100%); padding:20px 18px; max-height:calc(100dvh - 28px); } .transaction-icon-action { width:42px; height:42px; } }
