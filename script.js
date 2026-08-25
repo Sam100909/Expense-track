@@ -63,7 +63,9 @@ const state = {
     pendingWriteCheck: 0,
     pendingUndo: null,
     toastTimer: null,
-    greetingTimer: null
+    greetingTimer: null,
+    transactionViewportSync: null,
+    transactionViewportListening: false
 };
 
 
@@ -849,7 +851,7 @@ function setupNavigation() {
                         button.dataset.page;
 
                     if (page) {
-                        showPage(page);
+                        navigateToPage(page);
                     }
 
                 }
@@ -881,7 +883,7 @@ function setupNavigation() {
                         element.dataset.page;
 
                     if (page) {
-                        showPage(page);
+                        navigateToPage(page);
                     }
 
                 }
@@ -954,6 +956,19 @@ function setupNavigation() {
 
     }
 
+}
+
+function navigateToPage(pageName) {
+    const transactionModal = document.getElementById("transactionModal");
+    const transactionModalIsOpen = state.activeModal === "transaction" || Boolean(transactionModal && !transactionModal.classList.contains("hidden"));
+    if (!transactionModalIsOpen) {
+        showPage(pageName);
+        return;
+    }
+
+    hideTransactionModal({ discard: true });
+    history.replaceState(createHistoryState(pageName), "", window.location.href);
+    showPage(pageName, "none");
 }
 
 
@@ -1352,14 +1367,37 @@ function setupTransactionModalViewport(modal) {
         modal.style.setProperty("--transaction-modal-viewport-top", viewportTop + "px");
         modal.classList.toggle("keyboard-open", Boolean(viewport && viewport.height < window.innerHeight - 120));
     };
-    window.visualViewport?.addEventListener("resize", syncViewport);
-    window.visualViewport?.addEventListener("scroll", syncViewport);
     modal.addEventListener("focusin", syncViewport);
     modal.addEventListener("transitionend", syncViewport);
+    state.transactionViewportSync = syncViewport;
+}
+
+function startTransactionModalViewport() {
+    if (!state.transactionViewportSync || state.transactionViewportListening) return;
+    window.visualViewport?.addEventListener("resize", state.transactionViewportSync);
+    window.visualViewport?.addEventListener("scroll", state.transactionViewportSync);
+    state.transactionViewportListening = true;
+    state.transactionViewportSync();
+}
+
+function stopTransactionModalViewport() {
+    if (state.transactionViewportSync && state.transactionViewportListening) {
+        window.visualViewport?.removeEventListener("resize", state.transactionViewportSync);
+        window.visualViewport?.removeEventListener("scroll", state.transactionViewportSync);
+    }
+    state.transactionViewportListening = false;
+    const modal = document.getElementById("transactionModal");
+    if (!modal) return;
+    modal.classList.remove("keyboard-open");
+    modal.style.removeProperty("--transaction-modal-viewport-height");
+    modal.style.removeProperty("--transaction-modal-viewport-top");
 }
 
 
 function openTransactionModal(type, transaction = null) {
+
+    const modal = document.getElementById("transactionModal");
+    if (state.activeModal === "transaction" && modal && !modal.classList.contains("hidden")) return;
 
     history.pushState(
         createHistoryState(
@@ -1484,11 +1522,7 @@ function displayTransactionModal(type, transaction = null) {
     document.body.classList.add("modal-open");
     document.documentElement.classList.add("transaction-modal-open");
     state.activeModal = "transaction";
-
-    const viewport = window.visualViewport;
-    modal.style.setProperty("--transaction-modal-viewport-height", Math.round(viewport ? viewport.height : window.innerHeight) + "px");
-    modal.style.setProperty("--transaction-modal-viewport-top", Math.round(viewport ? viewport.offsetTop : 0) + "px");
-    modal.classList.toggle("keyboard-open", Boolean(viewport && viewport.height < window.innerHeight - 120));
+    startTransactionModalViewport();
 
 
     setTimeout(
@@ -1517,13 +1551,22 @@ function closeTransactionModal() {
 }
 
 
-function hideTransactionModal() {
+function hideTransactionModal(options = {}) {
 
     const modal =
         document.getElementById(
             "transactionModal"
         );
 
+
+    document.activeElement?.blur();
+    stopTransactionModalViewport();
+
+    if (options.discard !== false) {
+        const form = document.getElementById("transactionForm");
+        if (form) form.reset();
+        setTransactionType("expense");
+    }
 
     if (modal) {
 
