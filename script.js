@@ -119,6 +119,8 @@ document.addEventListener("DOMContentLoaded", function () {
     showApp();
     updateAll();
     applyLanguage(getLanguage());
+    scheduleDashboardLayoutAssertion();
+    window.addEventListener("resize", scheduleDashboardLayoutAssertion, { passive: true });
     document.addEventListener("visibilitychange", function () {
         if (!document.hidden) { updateTodayDateLabel(); updateGreeting(); scheduleGreetingBoundaryCheck(); }
     });
@@ -1090,7 +1092,28 @@ function showPage(pageName, historyMode = "push") {
     closeSidebarMenu();
 
     updateAll();
+    scheduleDashboardLayoutAssertion();
 
+}
+
+/* Development-only layout guard; remove when mobile viewport coverage is automated. */
+function scheduleDashboardLayoutAssertion() {
+    window.requestAnimationFrame(function () {
+        const viewportWidth = window.innerWidth;
+        const app = document.getElementById("app");
+        if (state.currentPage !== "dashboard" || viewportWidth < 360 || viewportWidth > 430 || app?.classList.contains("hidden")) return;
+        const minimumWidth = viewportWidth - 40;
+        [".topbar", "#dashboardPage .balance-card", "#dashboardPage .dashboard-spending-card"].forEach(function (selector) {
+            const element = document.querySelector(selector);
+            if (!element) return;
+            const rect = element.getBoundingClientRect();
+            console.assert(
+                rect.width >= minimumWidth && rect.left <= 20 && rect.right >= viewportWidth - 20,
+                "Dashboard mobile layout assertion failed: " + selector,
+                { viewportWidth: viewportWidth, minimumWidth: minimumWidth, left: rect.left, right: rect.right, width: rect.width }
+            );
+        });
+    });
 }
 
 
