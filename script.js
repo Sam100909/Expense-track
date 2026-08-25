@@ -45,6 +45,7 @@ const state = {
     nickname: "",
     unsubscribeTransactions: null,
     guestMode: false,
+    authResolved: false,
     currentPage: "dashboard",
     activeModal: null,
     editingTransactionId: null,
@@ -57,6 +58,7 @@ const state = {
     syncStatus: navigator.onLine ? "synced" : "offline",
     hasPendingWrites: false,
     syncFailed: false,
+    transactionSubmitting: false,
     pendingWriteCheck: 0,
     pendingUndo: null,
     toastTimer: null
@@ -102,7 +104,6 @@ document.addEventListener("DOMContentLoaded", function () {
     setupLogin();
     setupGuestLogin();
     setupNavigation();
-    setupMobileBackNavigation();
     setupTransactionModal();
     setupTransactionView();
     setupHistoryNavigation();
@@ -111,7 +112,12 @@ document.addEventListener("DOMContentLoaded", function () {
     setupSettings();
 
     loadLocalSettings();
+    showApp();
     updateAll();
+    applyLanguage(getLanguage());
+    document.addEventListener("visibilitychange", function () {
+        if (!document.hidden) { updateTodayDateLabel(); updateGreeting(); }
+    });
 
 });
 
@@ -121,6 +127,8 @@ document.addEventListener("DOMContentLoaded", function () {
 ========================================================= */
 
 onAuthStateChanged(auth, function (user) {
+
+    state.authResolved = true;
 
     if (user) {
 
@@ -499,14 +507,13 @@ async function saveTransaction() {
         document.getElementById("noteInput");
 
 
-    if (
-        !amountInput ||
-        !categoryInput ||
-        !dateInput ||
-        !noteInput
-    ) {
+    const form = document.getElementById("transactionForm");
+    if (!amountInput || !categoryInput || !dateInput || !noteInput || !form) {
+        showToast("Transaction form is unavailable. Please reopen it.", true);
         return;
     }
+
+    if (state.transactionSubmitting) return;
 
 
     const amount =
@@ -522,13 +529,14 @@ async function saveTransaction() {
         noteInput.value.trim();
 
 
-    if (!amount || amount <= 0) {
+    if (!Number.isFinite(amount) || amount <= 0) {
 
         showToast(
             "Please enter a valid amount",
             true
         );
 
+        amountInput.focus();
         return;
 
     }
@@ -541,6 +549,7 @@ async function saveTransaction() {
             true
         );
 
+        categoryInput.focus();
         return;
 
     }
@@ -553,6 +562,7 @@ async function saveTransaction() {
             true
         );
 
+        dateInput.focus();
         return;
 
     }
@@ -564,6 +574,8 @@ async function saveTransaction() {
         date: date,
         note: note
     };
+
+    setTransactionSubmitting(true);
 
     if (state.editingTransactionId) {
 
@@ -581,15 +593,18 @@ async function saveTransaction() {
 
             persistGuestTransactions();
 
+            resetTransactionForm();
             closeTransactionModal();
             updateAll();
             showToast("Transaction updated");
+            setTransactionSubmitting(false);
             return;
 
         }
 
         if (!state.currentUser) {
             showToast("Please login first", true);
+            setTransactionSubmitting(false);
             return;
         }
 
@@ -607,15 +622,28 @@ async function saveTransaction() {
             );
 
             queueTransactionWrite(writePromise, "Failed to update transaction");
+            if (!navigator.onLine) {
+                resetTransactionForm();
+                closeTransactionModal();
+                updateAll();
+                showToast("Transaction saved offline and will sync when you reconnect");
+                setTransactionSubmitting(false);
+                return;
+            }
+            await writePromise;
+            resetTransactionForm();
             closeTransactionModal();
+            updateAll();
             showToast("Transaction updated");
 
         } catch (error) {
 
             console.error("Failed to update transaction:", error);
-            showToast("Failed to update transaction", true);
+            showToast("Failed to update transaction. Your changes are still in the form.", true);
 
         }
+
+        setTransactionSubmitting(false);
 
         return;
 
@@ -638,6 +666,7 @@ async function saveTransaction() {
 
             persistGuestTransactions();
 
+            resetTransactionForm();
             closeTransactionModal();
             updateAll();
 
@@ -645,6 +674,7 @@ async function saveTransaction() {
                 "Transaction added"
             );
 
+            setTransactionSubmitting(false);
             return;
 
         }
@@ -653,6 +683,8 @@ async function saveTransaction() {
             "Please login first",
             true
         );
+
+        setTransactionSubmitting(false);
 
         return;
 
@@ -681,7 +713,18 @@ async function saveTransaction() {
         );
 
         queueTransactionWrite(writePromise, "Failed to save transaction");
+        if (!navigator.onLine) {
+            resetTransactionForm();
+            closeTransactionModal();
+            updateAll();
+            showToast("Transaction saved offline and will sync when you reconnect");
+            setTransactionSubmitting(false);
+            return;
+        }
+        await writePromise;
+        resetTransactionForm();
         closeTransactionModal();
+        updateAll();
 
         showToast(
             state.currentType === "income"
@@ -697,11 +740,13 @@ async function saveTransaction() {
         );
 
         showToast(
-            "Failed to save transaction",
+            "Failed to save transaction. Your entry is still in the form.",
             true
         );
 
     }
+
+    setTransactionSubmitting(false);
 
 }
 
@@ -996,6 +1041,8 @@ function showPage(pageName, historyMode = "push") {
     }
 
 
+    const pageOrder = ["dashboard", "transactions", "budget", "converter", "settings"];
+    const previousIndex = pageOrder.indexOf(state.currentPage), nextIndex = pageOrder.indexOf(pageName);
     state.currentPage = pageName;
     updateDashboardControlsVisibility();
 
@@ -1012,6 +1059,7 @@ function showPage(pageName, historyMode = "push") {
     target.classList.add(
         "active"
     );
+    target.style.setProperty("--page-enter-x", (nextIndex >= previousIndex ? "10px" : "-10px"));
 
 
     document
@@ -1188,25 +1236,9 @@ function setupTransactionModal() {
             "transactionForm"
         );
 
-    const mobileBackButton =
-        document.getElementById(
-            "mobileTransactionBack"
-        );
-
-
     if (closeButton) {
 
         closeButton.addEventListener(
-            "click",
-            closeTransactionModal
-        );
-
-    }
-
-
-    if (mobileBackButton) {
-
-        mobileBackButton.addEventListener(
             "click",
             closeTransactionModal
         );
@@ -1232,6 +1264,10 @@ function setupTransactionModal() {
         );
 
     }
+
+    document.addEventListener("keydown", function (event) {
+        if (event.key === "Escape" && state.activeModal === "transaction") closeTransactionModal();
+    });
 
 
     document
@@ -1380,20 +1416,21 @@ function displayTransactionModal(type, transaction = null) {
 
 
     const title = modal.querySelector("h2");
-    const submitButton = modal.querySelector("button[type='submit']");
+    const submitButton = document.getElementById("transactionSubmitButton");
 
     if (title) {
-        title.textContent = transaction ? "Edit transaction" : "Add transaction";
+        title.textContent = transaction ? "Edit transaction" : (type === "income" ? "Add Income" : "Add Expense");
     }
 
     if (submitButton) {
         submitButton.innerHTML = transaction
-            ? '<i class="fa-solid fa-check"></i> Save changes'
-            : '<i class="fa-solid fa-check"></i> Save transaction';
+            ? '<i class="fa-solid fa-check"></i> Save Changes'
+            : '<i class="fa-solid fa-check"></i> ' + (state.currentType === "income" ? "Add Income" : "Add Expense");
     }
 
     document.getElementById("transactionViewModal")?.classList.add("hidden");
     modal.classList.remove("hidden");
+    document.body.classList.add("modal-open");
     state.activeModal = "transaction";
 
 
@@ -1441,6 +1478,8 @@ function hideTransactionModal() {
 
     state.activeModal = null;
     state.editingTransactionId = null;
+    document.body.classList.remove("modal-open");
+    setTransactionSubmitting(false);
 
 }
 
@@ -1594,6 +1633,11 @@ function setTransactionType(type) {
 
     updateCategoryOptions();
 
+    const submitButton = document.getElementById("transactionSubmitButton");
+    if (submitButton && !state.editingTransactionId && !state.transactionSubmitting) {
+        submitButton.innerHTML = '<i class="fa-solid fa-check"></i> ' + (state.currentType === "income" ? "Add Income" : "Add Expense");
+    }
+
 }
 
 
@@ -1610,6 +1654,7 @@ function updateCategoryOptions() {
     }
 
 
+    const selectedCategory = select.value;
     select.innerHTML = "";
 
 
@@ -1653,6 +1698,36 @@ function updateCategoryOptions() {
 
     });
 
+    if (categories[state.currentType].includes(selectedCategory)) {
+        select.value = selectedCategory;
+    }
+
+}
+
+function setTransactionSubmitting(isSubmitting) {
+    state.transactionSubmitting = isSubmitting;
+    const submitButton = document.getElementById("transactionSubmitButton");
+    const form = document.getElementById("transactionForm");
+    if (!submitButton || !form) return;
+
+    submitButton.disabled = isSubmitting;
+    form.querySelectorAll("input, select, textarea, .type-button").forEach(function (field) {
+        field.disabled = isSubmitting;
+    });
+    form.setAttribute("aria-busy", String(isSubmitting));
+    if (isSubmitting) {
+        submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
+    } else if (state.editingTransactionId) {
+        submitButton.innerHTML = '<i class="fa-solid fa-check"></i> Save Changes';
+    } else {
+        submitButton.innerHTML = '<i class="fa-solid fa-check"></i> ' + (state.currentType === "income" ? "Add Income" : "Add Expense");
+    }
+}
+
+function resetTransactionForm() {
+    const form = document.getElementById("transactionForm");
+    if (form) form.reset();
+    setTransactionType("expense");
 }
 
 
@@ -2290,7 +2365,8 @@ function setupFilters() {
         "searchInput",
         "typeFilter",
         "categoryFilter",
-        "dateFilter"
+        "dateFilter",
+        "selectedMonthInput"
     ].forEach(function (id) {
 
         const element =
@@ -2317,6 +2393,14 @@ function setupFilters() {
 
 
     updateCategoryFilter();
+
+    document.getElementById("toggleTransactionFilters")?.addEventListener("click", function () {
+        const advanced = document.getElementById("transactionAdvancedFilters");
+        if (!advanced) return;
+        const open = advanced.classList.toggle("hidden") === false;
+        this.setAttribute("aria-expanded", String(open));
+        this.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> ' + (open ? "Hide filters" : "Search");
+    });
 
 }
 
@@ -2666,6 +2750,7 @@ function setupSettings() {
                     "expense_language",
                     language.value
                 );
+                applyLanguage(language.value);
 
 
                 showToast(
@@ -3104,13 +3189,7 @@ function loadLocalSettingsLegacy() {
 function applyTheme(theme) {
 
     const useDarkTheme =
-        theme === "dark" ||
-        (
-            theme === "system" &&
-            window.matchMedia(
-                "(prefers-color-scheme: dark)"
-            ).matches
-        );
+        theme === "dark";
 
 
     document.body.classList.toggle(
@@ -3201,6 +3280,11 @@ function updateGreeting() {
     }
 
 
+    if (!state.authResolved) {
+        greetingElement.textContent = "Welcome";
+        return;
+    }
+
     const hour =
         new Date().getHours();
 
@@ -3212,7 +3296,7 @@ function updateGreeting() {
             : "Good evening";
 
     greetingElement.textContent =
-        greeting + ", " + getUserDisplayName(state.currentUser);
+        t(greeting) + ", " + getUserDisplayName(state.currentUser);
 
 }
 
@@ -3252,7 +3336,7 @@ function showToast(
         state.toastTimer = null;
     }
 
-    messageElement.textContent = message;
+    messageElement.textContent = t(message);
 
 
     toast.classList.toggle(
@@ -3286,8 +3370,9 @@ function setSyncStatus(status) {
     state.syncStatus = resolvedStatus;
     const element = document.getElementById("syncStatus");
     if (!element) return;
+    element.hidden = resolvedStatus !== "offline" && resolvedStatus !== "failed";
     const labels = { saving: "Saving…", synced: "Synced", offline: "Offline", failed: "Sync failed" };
-    element.textContent = labels[resolvedStatus] || labels.synced;
+    element.textContent = t(labels[resolvedStatus] || labels.synced);
     element.className = "sync-status " + resolvedStatus;
 }
 
@@ -3469,7 +3554,7 @@ function updateTodayDateLabel() {
     if (!label) return;
     const today = new Date();
     label.dateTime = getDateKey(today);
-    label.textContent = today.toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+    label.textContent = today.toLocaleDateString(getLocale(), { day: "numeric", month: "long", year: "numeric" });
 }
 
 function setSelectedMonth(monthKey) {
@@ -3664,16 +3749,29 @@ function renderAllTransactions() {
     }).sort(sortTransactionsNewestFirst);
     container.innerHTML = "";
     if (!items.length) { container.innerHTML = '<div class="empty-state"><div class="empty-icon"><i class="fa-solid fa-receipt"></i></div><h4>No transactions for ' + escapeHTML(filter === "selected" ? monthLabel() : "this filter") + '</h4></div>'; return; }
-    items.forEach(function (item) { const el = createTransactionElement(item); const button = document.createElement("button"); button.className = "icon-button transaction-delete"; button.type = "button"; button.innerHTML = '<i class="fa-solid fa-trash"></i>'; button.setAttribute("aria-label", "Delete transaction"); button.addEventListener("click", function (event) { event.stopPropagation(); deleteTransaction(item.id); }); el.appendChild(button); container.appendChild(el); });
+    const groups = items.reduce(function (all, item) { const key = String(item.date || ""); (all[key] ||= []).push(item); return all; }, {});
+    Object.keys(groups).sort(function (a, b) { return b.localeCompare(a); }).forEach(function (date) {
+        const group = document.createElement("section"); group.className = "transaction-date-group";
+        const isToday = date === getDateKey(new Date());
+        const displayDate = new Date(date + "T00:00:00").toLocaleDateString(getLocale(), { day: "numeric", month: "short", year: "numeric" });
+        group.innerHTML = '<h2>' + (isToday ? t("Today") + " · " : "") + escapeHTML(displayDate) + '</h2>';
+        groups[date].forEach(function (item) {
+            const row = document.createElement("article"), amountClass = item.type === "income" ? "income" : "expense";
+            row.className = "transaction-item compact-transaction " + amountClass;
+            row.innerHTML = '<div class="transaction-info"><strong>' + escapeHTML(item.category || "Other") + '</strong><span>' + escapeHTML(item.note || item.type) + '</span></div><strong class="transaction-amount ' + amountClass + '">' + (item.type === "income" ? "+" : "−") + formatCurrency(item.amount) + '</strong><div class="transaction-row-actions"><button type="button" class="text-button" data-edit-transaction="' + escapeHTML(item.id) + '">Edit</button><button type="button" class="text-button transaction-delete" data-delete-transaction="' + escapeHTML(item.id) + '">Delete</button></div>';
+            row.querySelector("[data-edit-transaction]").addEventListener("click", function () { openTransactionModal(item.type, item); });
+            row.querySelector("[data-delete-transaction]").addEventListener("click", function () { deleteTransaction(item.id); });
+            group.appendChild(row);
+        });
+        container.appendChild(group);
+    });
 }
 
 function updateAnalytics() {
-    const income = getIncome(), expenses = getExpenses();
-    setMoney("analyticsIncome", income); setMoney("analyticsExpenses", expenses); setMoney("analyticsSavings", income - expenses);
-    const count = document.getElementById("analyticsCount"); if (count) count.textContent = getSelectedMonthTransactions().length;
+    // Dashboard is the single analysis surface; transaction data stays unchanged.
 }
 
-function renderSpendingBreakdown() {
+function renderSpendingBreakdownLegacy() {
     const expenses = getSelectedMonthTransactions().filter(function (item) { return item.type === "expense"; });
     const totals = expenses.reduce(function (all, item) { const key = item.category || "Other"; all[key] = (all[key] || 0) + Number(item.amount || 0); return all; }, {});
     const entries = Object.entries(totals).sort(function (a, b) { return b[1] - a[1]; }), total = entries.reduce(function (sum, item) { return sum + item[1]; }, 0);
@@ -3710,10 +3808,8 @@ function setupGuestImport() {
 }
 
 function setupAppearancePersistence() {
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    media.addEventListener("change", function () { if ((localStorage.getItem("expense_appearance") || "system") === "system") { applyTheme("system"); renderSpendingBreakdown(); } });
     document.getElementById("saveAppearanceButton")?.addEventListener("click", function () {
-        const selected = document.querySelector("[data-theme].active")?.dataset.theme || "system";
+        const selected = document.querySelector("[data-theme].active")?.dataset.theme || "light";
         const primary = document.getElementById("primaryColor")?.value;
         const secondary = document.getElementById("secondaryColor")?.value;
         localStorage.setItem("expense_appearance", selected);
@@ -3734,12 +3830,50 @@ function applySavedAccentColors() {
 function loadLocalSettings() {
     const currency = localStorage.getItem("expense_currency");
     if (currency) { state.currency = currency; const select = document.getElementById("currencySelect"); if (select) select.value = currency; }
-    const appearance = localStorage.getItem("expense_appearance") || localStorage.getItem("expense_theme") || "system";
+    let appearance = localStorage.getItem("expense_appearance") || localStorage.getItem("expense_theme") || "light";
+    if (appearance === "system") { appearance = "light"; localStorage.setItem("expense_appearance", appearance); }
     applyTheme(appearance);
     applySavedAccentColors();
     document.querySelectorAll("[data-theme]").forEach(function (button) { button.classList.toggle("active", button.dataset.theme === appearance); });
 }
 
+
+function getCategoryColor(category) {
+    const primary = getComputedStyle(document.documentElement).getPropertyValue("--primary").trim() || "#36383d";
+    const hash = Array.from(String(category)).reduce(function (value, char) { return ((value << 5) - value + char.charCodeAt(0)) | 0; }, 0);
+    const offset = Math.abs(hash) % 7, base = /^#([0-9a-f]{6})$/i.exec(primary);
+    if (!base) return primary;
+    const value = parseInt(base[1], 16), r = value >> 16, g = (value >> 8) & 255, b = value & 255;
+    const hue = ((Math.atan2(Math.sqrt(3) * (g - b), 2 * r - g - b) * 180 / Math.PI) + 360) % 360;
+    return "hsl(" + Math.round((hue + (offset - 3) * 8 + 360) % 360) + " " + (18 + offset * 3) + "% " + (document.body.classList.contains("dark") ? 42 + offset * 4 : 29 + offset * 6) + "%)";
+}
+
+function renderSpendingLabels(entries, colors) {
+    const labels = document.getElementById("spendingLabels"); if (!labels) return;
+    labels.innerHTML = "";
+    const left = [], right = [];
+    entries.forEach(function (entry, index) { (index / entries.length < .5 ? right : left).push([entry, index]); });
+    [left, right].forEach(function (side, sideIndex) { side.forEach(function (pair, position) {
+        const entry = pair[0], index = pair[1], label = document.createElement("span");
+        const y = ((position + 1) / (side.length + 1)) * 82 + 9;
+        label.textContent = entry[0]; label.className = "spending-label";
+        label.style.setProperty("--label-x", (sideIndex === 0 ? 90 : 10) + "%"); label.style.setProperty("--label-y", y + "%"); label.style.setProperty("--label-color", colors[index]); label.classList.toggle("label-left", sideIndex === 1);
+        labels.appendChild(label);
+    }); });
+}
+
+function renderSpendingBreakdown() {
+    const expenses = getSelectedMonthTransactions().filter(function (item) { return item.type === "expense"; });
+    const totals = expenses.reduce(function (all, item) { const key = item.category || "Other"; all[key] = (all[key] || 0) + Number(item.amount || 0); return all; }, {});
+    const entries = Object.entries(totals).sort(function (a, b) { return b[1] - a[1]; }), total = entries.reduce(function (sum, item) { return sum + item[1]; }, 0);
+    const empty = document.getElementById("spendingEmpty"), content = document.getElementById("spendingContent");
+    if (empty) empty.classList.toggle("hidden", total > 0); if (content) content.classList.toggle("hidden", total <= 0);
+    if (!total || typeof Chart === "undefined") { if (state.spendingChart) { state.spendingChart.destroy(); state.spendingChart = null; } return; }
+    document.getElementById("chartTotal").textContent = formatCurrency(total);
+    const colors = entries.map(function (entry) { return getCategoryColor(entry[0]); }); renderSpendingLabels(entries, colors);
+    if (state.spendingChart) state.spendingChart.destroy();
+    state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", data: { labels: entries.map(function (entry) { return entry[0]; }), datasets: [{ data: entries.map(function (entry) { return entry[1]; }), backgroundColor: colors, borderWidth: 0, borderRadius: 12, spacing: 2, hoverOffset: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "74%", animation: { duration: 260 }, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false } } } });
+}
 
 /* =========================================================
    CURRENCY CONVERTER
@@ -4105,6 +4239,30 @@ function setupBudgetLegacy2() {
             catch (error) { console.error("Failed to delete budget:", error); showToast("Failed to delete budget", true); }
         }
     });
+}
+
+const translations = {
+    zh: {
+        "Dashboard":"儀表板", "Transactions":"交易", "Budget":"預算", "Settings":"設定", "Converter":"匯率換算", "Home":"首頁", "Search":"搜尋", "Hide filters":"隱藏篩選", "Search transactions":"搜尋交易", "All types":"所有類型", "All categories":"所有分類", "Selected month":"所選月份", "All time":"所有時間", "Today":"今天", "Last 7 days":"最近 7 天", "This month":"本月", "Expense":"支出", "Income":"收入", "Add Expense":"新增支出", "Add Income":"新增收入", "Edit transaction":"編輯交易", "Save Changes":"儲存變更", "Saving…":"儲存中…", "Amount":"金額", "Category":"分類", "Date":"日期", "Note":"備註", "Select category":"選擇分類", "Add a note…":"新增備註…", "Edit":"編輯", "Delete":"刪除", "Cancel":"取消", "Close":"關閉", "No transactions":"沒有交易", "No transactions found":"找不到交易", "No expenses this month":"本月沒有支出", "Expense Breakdown":"支出分類", "Expenses":"支出", "Total Balance":"總餘額", "Available balance":"可用餘額", "Healthy":"健康", "Balanced":"平衡", "Over budget":"超出預算", "Category Budgets":"分類預算", "No category budgets set":"尚未設定分類預算", "Add a category budget to track your spending.":"新增分類預算以追蹤支出。", "Add Category Budget":"新增分類預算", "Edit Category Budget":"編輯分類預算", "Category budget saved":"分類預算已儲存", "Category budget deleted":"分類預算已刪除", "remaining":"剩餘", "over budget":"超出預算", "used":"已使用", "Language":"語言", "Choose the app language":"選擇應用程式語言", "Currency":"貨幣", "Theme":"主題", "Light":"淺色", "Dark":"深色", "Tools":"工具", "Preferences":"偏好設定", "Account":"帳戶", "Currency Converter":"匯率換算", "Exchange estimate":"匯率估算", "From":"從", "To":"至", "Converted amount":"換算金額", "Choose currency":"選擇貨幣", "Search currency":"搜尋貨幣", "Offline":"離線", "Sync failed":"同步失敗", "Food":"餐飲", "Transport":"交通", "Car Maintenance":"汽車保養", "Shopping":"購物", "Bills":"帳單", "Entertainment":"娛樂", "Education":"教育", "Health":"健康", "Other":"其他", "Salary":"薪資", "Allowance":"津貼", "Bonus":"獎金", "Gift":"禮物", "Business":"商業"
+    }
+};
+
+Object.assign(translations.zh, {
+    "Welcome":"歡迎", "Good morning":"早安", "Good afternoon":"午安", "Good evening":"晚安", "Guest":"訪客", "Sign in":"登入", "Log out":"登出", "Continue with Google":"使用 Google 繼續", "Continue as Guest":"以訪客身分繼續", "Transaction":"交易", "Add transaction":"新增交易", "Save transaction":"儲存交易", "Please enter a valid amount":"請輸入有效金額", "Please select a category":"請選擇分類", "Please select a date":"請選擇日期", "Please login first":"請先登入", "Transaction added":"交易已新增", "Transaction updated":"交易已更新", "Failed to save transaction":"儲存交易失敗", "Failed to update transaction":"更新交易失敗", "Transaction deleted":"交易已刪除", "Transaction restored":"交易已還原", "Undo":"復原", "Saving…":"儲存中…", "Synced":"已同步", "Offline":"離線", "Sync failed":"同步失敗", "Saving":"儲存中", "No transactions for this filter":"此篩選條件沒有交易", "No transactions for":"沒有符合以下條件的交易：", "No expenses this month":"本月沒有支出", "Add an expense to see your category breakdown.":"新增支出後即可查看分類圖表。", "This month":"本月", "Expense Breakdown":"支出分類", "Category Budgets":"分類預算", "Sign in to manage category budgets":"登入以管理分類預算", "Budgets sync securely across your devices.":"預算會安全同步到你的裝置。", "Please enter a valid budget amount.":"請輸入有效的預算金額。", "Please select a category.":"請選擇分類。", "Failed to save category budget":"儲存分類預算失敗", "Failed to delete category budget":"刪除分類預算失敗", "Currency Converter":"匯率換算", "Reference rate":"參考匯率", "Last updated":"最後更新", "Ready":"準備完成", "Converted amount":"換算金額", "Exchange estimate":"匯率估算", "Choose currency":"選擇貨幣", "Search currency":"搜尋貨幣", "Swap currencies":"交換貨幣", "Reference rates only. Your bank, card provider, or transfer service may use a different rate.":"僅供參考；銀行、發卡機構或匯款服務的匯率可能不同。", "Nickname":"暱稱", "Shown in your Dashboard greeting":"顯示在儀表板問候語中", "Save":"儲存", "Appearance":"外觀", "Accent colors":"主題色彩", "Personalize the dashboard gradient":"自訂儀表板色彩", "Generate colors":"產生色彩", "Choose how the app looks":"選擇應用程式外觀", "Used for all transaction totals":"用於所有交易總計", "Select category":"選擇分類", "Add a note…":"新增備註…", "Search transactions":"搜尋交易", "Filter by type":"依類型篩選", "Filter by category":"依分類篩選", "Filter by date":"依日期篩選", "Show or hide balance":"顯示或隱藏餘額", "Close":"關閉", "Delete transaction":"刪除交易", "Edit transaction":"編輯交易", "Add Category Budget":"新增分類預算", "Edit Category Budget":"編輯分類預算", "No category budgets set":"尚未設定分類預算", "Add a category budget to track your spending.":"新增分類預算以追蹤支出。"
+});
+
+function getLanguage() { return localStorage.getItem("expense_language") === "zh" ? "zh" : "en"; }
+function getLocale() { return getLanguage() === "zh" ? "zh-Hans-MY" : "en-GB"; }
+function t(value) { return translations.zh[value] && getLanguage() === "zh" ? translations.zh[value] : value; }
+
+function applyLanguage(language) {
+    localStorage.setItem("expense_language", language === "zh" ? "zh" : "en");
+    const select = document.getElementById("languageSelect"); if (select) select.value = getLanguage();
+    updateAll(); updateTodayDateLabel();
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+    nodes.forEach(function (node) { const raw = node.__sourceText || node.nodeValue; node.__sourceText = raw; const trimmed = raw.trim(), translated = t(trimmed); node.nodeValue = raw.replace(trimmed, translated); });
+    document.querySelectorAll("[placeholder],[aria-label]").forEach(function (element) { ["placeholder", "aria-label"].forEach(function (attribute) { const key = "i18n" + attribute, value = element.dataset[key] || element.getAttribute(attribute); if (value) { element.dataset[key] = value; element.setAttribute(attribute, t(value)); } }); });
 }
 
 function updateBudgetUILegacy2() {
