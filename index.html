@@ -16,7 +16,7 @@
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     >
 
-    <link rel="stylesheet" href="style.css?v=32">
+    <link rel="stylesheet" href="style.css?v=33">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" href="./app-icon-512.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="./app-icon-512.png" sizes="512x512">
@@ -251,7 +251,7 @@
                 <section class="chart-card spending-card dashboard-spending-card">
                     <div class="section-header"><div><span class="eyebrow">THIS MONTH</span><h3>Expense Breakdown</h3></div></div>
                     <div id="spendingEmpty" class="empty-state compact-empty"><div class="empty-icon"><i class="fa-solid fa-chart-pie"></i></div><h4>No expenses this month</h4><p>Add an expense to see your category breakdown.</p></div>
-                    <div id="spendingContent" class="spending-content hidden"><div class="doughnut-wrap"><canvas id="spendingChart" aria-label="Expense breakdown chart"></canvas><div class="doughnut-center"><span>Expenses</span><strong id="chartTotal">—</strong></div><div id="spendingLabels" class="spending-labels" aria-hidden="true"></div></div></div>
+                    <div id="spendingContent" class="spending-content hidden"><div class="doughnut-wrap"><canvas id="spendingChart" aria-label="Expense breakdown chart"></canvas><div class="doughnut-center"><span>Expenses</span><strong id="chartTotal">—</strong></div></div><div id="spendingLegend" class="spending-legend" aria-label="Expense categories"></div></div>
                 </section>
 
 
@@ -488,7 +488,7 @@
                     </div>
                 </div>
 
-                <p class="build-version" aria-label="Build version">Build v32</p>
+                <p class="build-version" aria-label="Build version">Build v33</p>
 
             </section>
 
@@ -745,7 +745,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-<script type="module" src="./script.js?v=32"></script>
+<script type="module" src="./script.js?v=33"></script>
 
 <script>
     if ("serviceWorker" in navigator) {

@@ -3937,12 +3937,11 @@ function renderSpendingBreakdown() {
     if (empty) empty.classList.toggle("hidden", total > 0); if (content) content.classList.toggle("hidden", total <= 0);
     if (!total || typeof Chart === "undefined") { if (state.spendingChart) { state.spendingChart.destroy(); state.spendingChart = null; } return; }
     document.getElementById("chartTotal").textContent = formatCurrency(total);
-    const colors = entries.map(function (entry) { return getCategoryColor(entry[0]); }); document.getElementById("spendingLabels").innerHTML = "";
-    const measureCanvas = document.createElement("canvas"), measureContext = measureCanvas.getContext("2d");
-    measureContext.font = "500 14px -apple-system, BlinkMacSystemFont, Segoe UI, sans-serif";
-    const labelPadding = Math.max(104, Math.ceil(Math.max.apply(null, entries.map(function (entry) { return measureContext.measureText(t(entry[0])).width; })) + 28));
+    const colors = entries.map(function (entry) { return getCategoryColor(entry[0]); });
+    const legend = document.getElementById("spendingLegend");
+    if (legend) legend.innerHTML = entries.map(function (entry, index) { return '<span class="chart-legend-item"><i style="background:' + colors[index] + '"></i><span>' + escapeHTML(t(entry[0])) + '</span></span>'; }).join("");
     if (state.spendingChart) state.spendingChart.destroy();
-    state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", plugins: [chartExternalLabels], data: { labels: entries.map(function (entry) { return entry[0]; }), datasets: [{ data: entries.map(function (entry) { return entry[1]; }), backgroundColor: colors, borderWidth: 0, borderRadius: 10, spacing: 2, hoverOffset: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "84%", layout: { padding: { left: labelPadding, right: labelPadding, top: 18, bottom: 18 } }, animation: { duration: 260 }, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false }, chartExternalLabels: { labels: entries.map(function (entry) { return entry[0]; }) } } } });
+    state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", data: { labels: entries.map(function (entry) { return entry[0]; }), datasets: [{ data: entries.map(function (entry) { return entry[1]; }), backgroundColor: colors, borderWidth: 0, borderRadius: 10, spacing: 2, hoverOffset: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "84%", animation: { duration: 260 }, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false } } } });
 }
 
 /* =========================================================
