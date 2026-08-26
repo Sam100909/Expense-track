@@ -1547,9 +1547,11 @@ function displayTransactionModal(type, transaction = null) {
 
     if (submitButton) {
         submitButton.innerHTML = transaction
-            ? '<i class="fa-solid fa-check"></i> Save Changes'
-            : '<i class="fa-solid fa-check"></i> ' + (state.currentType === "income" ? "Add Income" : "Add Expense");
+            ? '<i class="fa-solid fa-check"></i> ' + t("Save Changes")
+            : '<i class="fa-solid fa-check"></i> ' + t(state.currentType === "income" ? "Add Income" : "Add Expense");
     }
+    const noteInput = document.getElementById("noteInput");
+    if (noteInput) noteInput.placeholder = t("Add a note...");
 
     document.getElementById("transactionViewModal")?.classList.add("hidden");
     modal.classList.remove("hidden");
@@ -1822,7 +1824,7 @@ function setTransactionType(type) {
 
     const submitButton = document.getElementById("transactionSubmitButton");
     if (submitButton && !state.editingTransactionId && !state.transactionSubmitting) {
-        submitButton.innerHTML = '<i class="fa-solid fa-check"></i> ' + (state.currentType === "income" ? "Add Income" : "Add Expense");
+        submitButton.innerHTML = '<i class="fa-solid fa-check"></i> ' + t(state.currentType === "income" ? "Add Income" : "Add Expense");
     }
     const title = document.querySelector("#transactionModal h2");
     if (title && !document.getElementById("transactionModal")?.classList.contains("hidden")) title.textContent = getTransactionModalTitle();
@@ -1909,11 +1911,11 @@ function setTransactionSubmitting(isSubmitting) {
     });
     form.setAttribute("aria-busy", String(isSubmitting));
     if (isSubmitting) {
-        submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Saving…';
+        submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> ' + t("Saving…");
     } else if (state.editingTransactionId) {
-        submitButton.innerHTML = '<i class="fa-solid fa-check"></i> Save Changes';
+        submitButton.innerHTML = '<i class="fa-solid fa-check"></i> ' + t("Save Changes");
     } else {
-        submitButton.innerHTML = '<i class="fa-solid fa-check"></i> ' + (state.currentType === "income" ? "Add Income" : "Add Expense");
+        submitButton.innerHTML = '<i class="fa-solid fa-check"></i> ' + t(state.currentType === "income" ? "Add Income" : "Add Expense");
     }
 }
 
