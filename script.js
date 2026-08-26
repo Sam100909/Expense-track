@@ -4088,7 +4088,7 @@ function setupAppearancePersistence() {
     const primary = document.getElementById("modalPrimaryColor"), secondary = document.getElementById("modalSecondaryColor");
     const preview = document.getElementById("appearancePreview");
     if (!modal || wheels.length !== 2 || !primary || !secondary) return;
-    const values = { primary: "#7C5CFC", secondary: "#5CC8FF" }, baseColours = { ...values }, tones = { primary: .5, secondary: .5 };
+    const values = { primary: "#7C5CFC", secondary: "#5CC8FF" }, baseColours = { ...values }, tones = { primary: .5, secondary: .5 }, pickerStorageKey = "expense_colour_picker_state";
     let pointerFrame = 0, pendingPointer = null, resizeFrame = 0;
     const hsvToHex = function (hue, saturation, value = 1) {
         const chroma = value * saturation, segment = hue / 60, x = chroma * (1 - Math.abs(segment % 2 - 1)), match = value - chroma;
@@ -4133,8 +4133,8 @@ function setupAppearancePersistence() {
     const updateControls = function () {
         primary.style.background = values.primary; secondary.style.background = values.secondary;
         ["primary", "secondary"].forEach(function (target) {
-            const chosen = document.getElementById(target + "ChosenPreview"), hex = document.getElementById(target + "ChosenHex"), tone = document.querySelector('[data-colour-tone="' + target + '"]');
-            if (chosen) chosen.style.background = values[target]; if (hex) hex.textContent = values[target].toUpperCase();
+            const chosen = document.getElementById(target + "ChosenPreview"), tone = document.querySelector('[data-colour-tone="' + target + '"]');
+            if (chosen) chosen.style.background = values[target];
             if (tone) { tone.value = String(Math.round(tones[target] * 1000)); tone.style.setProperty("--tone-current", values[target]); tone.style.setProperty("--tone-gradient", "linear-gradient(90deg,#000," + baseColours[target] + " 50%,#fff)"); }
         });
         wheels.forEach(drawWheel);
@@ -4147,14 +4147,23 @@ function setupAppearancePersistence() {
         if (hsv.value > .99 && hsv.saturation < .01) { baseColours[target] = "#FFFFFF"; tones[target] = 1; return; }
         baseColours[target] = colour; tones[target] = .5;
     };
+    const restoreSavedPickerState = function (target, colour, saved) {
+        const entry = saved?.[target];
+        if (entry && /^#[0-9a-f]{6}$/i.test(entry.base) && /^#[0-9a-f]{6}$/i.test(entry.colour) && Number.isFinite(entry.tone) && entry.tone >= 0 && entry.tone <= 1 && entry.colour.toUpperCase() === colour.toUpperCase()) {
+            baseColours[target] = entry.base.toUpperCase(); tones[target] = entry.tone; values[target] = entry.colour.toUpperCase(); return;
+        }
+        setBaseFromValue(target, colour);
+    };
     modal.__appearanceRefresh = refresh;
     document.getElementById("openColourModal")?.addEventListener("click", function () {
         if (!modal.classList.contains("hidden")) return;
         const styles = getComputedStyle(document.documentElement);
         modal.__appearanceOriginal = { primary: styles.getPropertyValue("--primary").trim(), secondary: styles.getPropertyValue("--secondary").trim() };
         modal.__appearanceRestoreOnClose = true;
-        setBaseFromValue("primary", modal.__appearanceOriginal.primary);
-        setBaseFromValue("secondary", modal.__appearanceOriginal.secondary);
+        let savedPicker = null;
+        try { savedPicker = JSON.parse(localStorage.getItem(pickerStorageKey) || "null"); } catch (error) { localStorage.removeItem(pickerStorageKey); }
+        restoreSavedPickerState("primary", modal.__appearanceOriginal.primary, savedPicker);
+        restoreSavedPickerState("secondary", modal.__appearanceOriginal.secondary, savedPicker);
         history.pushState(createHistoryState(state.currentPage, "appearance"), "", window.location.href);
         modal.classList.remove("hidden");
         document.body.classList.add("modal-open");
@@ -4188,7 +4197,7 @@ function setupAppearancePersistence() {
     window.addEventListener("resize", scheduleWheelResize, { passive: true });
     window.addEventListener("orientationchange", scheduleWheelResize, { passive: true });
     if (window.ResizeObserver) new ResizeObserver(scheduleWheelResize).observe(modal);
-    document.getElementById("saveColoursButton")?.addEventListener("click", function () { values.primary = values.primary.toUpperCase(); values.secondary = values.secondary.toUpperCase(); localStorage.setItem("expense_primary_color", values.primary); localStorage.setItem("expense_secondary_color", values.secondary); localStorage.setItem("expense_has_custom_colors", "true"); closeAppearanceModal({ restore: false }); showToast("Colours saved"); });
+    document.getElementById("saveColoursButton")?.addEventListener("click", function () { values.primary = values.primary.toUpperCase(); values.secondary = values.secondary.toUpperCase(); localStorage.setItem("expense_primary_color", values.primary); localStorage.setItem("expense_secondary_color", values.secondary); localStorage.setItem(pickerStorageKey, JSON.stringify({ primary: { colour: values.primary, base: baseColours.primary.toUpperCase(), tone: tones.primary }, secondary: { colour: values.secondary, base: baseColours.secondary.toUpperCase(), tone: tones.secondary } })); localStorage.setItem("expense_has_custom_colors", "true"); closeAppearanceModal({ restore: false }); showToast("Colours saved"); });
     document.getElementById("resetColoursButton")?.addEventListener("click", function () { baseColours.primary = "#7C5CFC"; baseColours.secondary = "#5CC8FF"; tones.primary = .5; tones.secondary = .5; apply(); });
     document.getElementById("closeColourModal")?.addEventListener("click", function () { closeAppearanceModal({ restore: true }); });
     modal.addEventListener("click", function (event) { if (event.target === modal) closeAppearanceModal({ restore: true }); });
@@ -4601,6 +4610,7 @@ function setupBudget() {
         modal.classList.remove("hidden");
         state.activeModal = "budget";
         document.body.classList.add("modal-open");
+        applyLanguage(getLanguage());
         document.getElementById("budgetAmountInput").focus();
     };
     document.getElementById("addCategoryBudgetButton")?.addEventListener("click", function () { if (!state.currentUser || state.guestMode) return showToast("Sign in to manage budgets", true); open(); });
@@ -4644,6 +4654,8 @@ function updateBudgetUI() {
     if (!entries.length) { list.innerHTML = ""; return; }
     section.querySelector("#categoryBudgetHint").textContent = monthLabel();
     list.innerHTML = entries.map(function (item) { const status = item.over ? formatCurrency(item.spent - item.budget) + " over budget" : formatCurrency(item.budget - item.spent) + " remaining"; return '<div class="category-budget-row' + (item.over ? ' over' : '') + '"><div class="category-budget-row-top"><strong>' + escapeHTML(item.category) + '</strong><span>' + formatCurrency(item.spent) + ' / ' + formatCurrency(item.budget) + '</span></div><div class="category-progress"><span style="width:' + Math.min(item.percent, 100) + '%"></span></div><div class="category-budget-status">' + item.percent + '% used · ' + status + '</div><div class="budget-row-actions"><button type="button" class="text-button" data-edit-budget="' + escapeHTML(item.category) + '">Edit</button><button type="button" class="text-button budget-delete" data-delete-budget="' + escapeHTML(item.category) + '">Delete</button></div></div>'; }).join("");
+    list.querySelectorAll(".category-budget-status").forEach(function (status) { const raw = status.dataset.i18nSource || status.textContent; status.dataset.i18nSource = raw; status.textContent = getLanguage() === "zh" ? raw.replace("used", t("used")).replace("over budget", t("over budget")).replace("remaining", t("remaining")) : raw; });
+    list.querySelectorAll("[data-edit-budget],[data-delete-budget]").forEach(function (button) { const editing = Boolean(button.dataset.editBudget); button.classList.add("budget-icon-action"); button.setAttribute("aria-label", t(editing ? "Edit Category Budget" : "Delete Category Budget")); button.setAttribute("title", t(editing ? "Edit" : "Delete")); button.innerHTML = '<i class="fa-solid fa-' + (editing ? "pen" : "trash") + '"></i>'; });
 }
 
 /* Legacy budget implementation retained for reference only. */
@@ -4703,6 +4715,10 @@ const translations = {
 
 Object.assign(translations.zh, {
     "Welcome":"歡迎", "Good morning":"早安", "Good afternoon":"午安", "Good evening":"晚上好", "Good night":"晚安", "Show balance":"顯示餘額", "Hide balance":"隱藏餘額", "Guest":"訪客", "Sign in":"登入", "Log out":"登出", "Continue with Google":"使用 Google 繼續", "Continue as Guest":"以訪客身分繼續", "Transaction":"交易", "Add transaction":"新增交易", "Save transaction":"儲存交易", "Please enter a valid amount":"請輸入有效金額", "Please select a category":"請選擇分類", "Please select a date":"請選擇日期", "Please login first":"請先登入", "Transaction added":"交易已新增", "Transaction updated":"交易已更新", "Failed to save transaction":"儲存交易失敗", "Failed to update transaction":"更新交易失敗", "Transaction deleted":"交易已刪除", "Transaction restored":"交易已還原", "Undo":"復原", "Saving…":"儲存中…", "Synced":"已同步", "Offline":"離線", "Sync failed":"同步失敗", "Saving":"儲存中", "No transactions for this filter":"此篩選條件沒有交易", "No transactions for":"沒有符合以下條件的交易：", "No expenses this month":"本月沒有支出", "Add an expense to see your category breakdown.":"新增支出後即可查看分類圖表。", "This month":"本月", "Expense Breakdown":"支出分類", "Category Budgets":"分類預算", "Sign in to manage category budgets":"登入以管理分類預算", "Budgets sync securely across your devices.":"預算會安全同步到你的裝置。", "Please enter a valid budget amount.":"請輸入有效的預算金額。", "Please select a category.":"請選擇分類。", "Failed to save category budget":"儲存分類預算失敗", "Failed to delete category budget":"刪除分類預算失敗", "Currency Converter":"匯率換算", "Reference rate":"參考匯率", "Last updated":"最後更新", "Ready":"準備完成", "Converted amount":"換算金額", "Exchange estimate":"匯率估算", "Choose currency":"選擇貨幣", "Search currency":"搜尋貨幣", "Swap currencies":"交換貨幣", "Reference rates only. Your bank, card provider, or transfer service may use a different rate.":"僅供參考；銀行、發卡機構或匯款服務的匯率可能不同。", "Nickname":"暱稱", "Shown in your Dashboard greeting":"顯示在儀表板問候語中", "Save":"儲存", "Appearance":"外觀", "Accent colors":"主題色彩", "Personalize the dashboard gradient":"自訂儀表板色彩", "Generate colors":"產生色彩", "Choose how the app looks":"選擇應用程式外觀", "Used for all transaction totals":"用於所有交易總計", "Select category":"選擇分類", "Add a note…":"新增備註…", "Search transactions":"搜尋交易", "Filter by type":"依類型篩選", "Filter by category":"依分類篩選", "Filter by date":"依日期篩選", "Show or hide balance":"顯示或隱藏餘額", "Close":"關閉", "Delete transaction":"刪除交易", "Edit transaction":"編輯交易", "Add Category Budget":"新增分類預算", "Edit Category Budget":"編輯分類預算", "No category budgets set":"尚未設定分類預算", "Add a category budget to track your spending.":"新增分類預算以追蹤支出。"
+});
+
+Object.assign(translations.zh, {
+    "Your nickname":"你的暱稱", "Sign in to save a nickname":"登入後才能儲存暱稱", "Use a nickname of 1–40 characters":"暱稱長度須為 1 至 40 個字元", "Failed to save nickname":"儲存暱稱失敗", "Personalise your dashboard palette":"自訂儀表板色彩", "Accent colours":"主題色彩", "APPEARANCE":"外觀", "Current primary and secondary colours":"目前的主要與次要色彩", "Customise Colours":"自訂色彩", "Primary Colour":"主要色彩", "Secondary Colour":"次要色彩", "Chosen":"已選擇", "Reset Default":"恢復預設", "Save Colours":"儲存色彩", "Primary colour wheel. Use arrow keys to adjust hue and saturation.":"主要色彩圓盤。使用方向鍵調整色相與飽和度。", "Secondary colour wheel. Use arrow keys to adjust hue and saturation.":"次要色彩圓盤。使用方向鍵調整色相與飽和度。", "Primary colour tone":"主要色彩明暗", "Secondary colour tone":"次要色彩明暗", "Sign in to manage category budgets":"登入以管理分類預算", "Budgets sync securely across your devices.":"預算會安全同步到你的裝置。", "Edit Category Budget":"編輯分類預算", "Delete Category Budget":"刪除分類預算", "Please enter a valid budget amount.":"請輸入有效的預算金額。", "Please select a category.":"請選擇分類。", "Failed to save category budget":"儲存分類預算失敗", "Failed to delete category budget":"刪除分類預算失敗", "Category":"分類", "Amount":"金額", "Save":"儲存", "Cancel":"取消", "Delete":"刪除", "Edit":"編輯", "PLAN":"規劃", "CATEGORY BUDGET":"分類預算", "CATEGORY BUDGETS":"分類預算", "+ Add Category Budget":"＋ 新增分類預算", "Add":"新增", "Set Budget":"設定預算", "Set Total Budget":"設定總預算", "Edit Total Budget":"編輯總預算", "Sign in to manage budgets":"登入以管理預算"
 });
 
 function getLanguage() { return localStorage.getItem("expense_language") === "zh" ? "zh" : "en"; }

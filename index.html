@@ -17,7 +17,7 @@
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     >
 
-    <link rel="stylesheet" href="style.css?v=48">
+    <link rel="stylesheet" href="style.css?v=49">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" href="./app-icon-512.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="./app-icon-512.png" sizes="512x512">
@@ -483,7 +483,7 @@
                     </div>
                 </div>
 
-                <p class="build-version" aria-label="Build version">Build v48</p>
+                <p class="build-version" aria-label="Build version">Build v49</p>
 
             </section>
 
@@ -727,18 +727,18 @@
         <span id="toastMessage"></span>
     </div>
 
-    <div id="colourModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="colourModalTitle"><div class="modal-card colour-modal-card"><div class="modal-header"><div><span class="eyebrow">APPEARANCE</span><h2 id="colourModalTitle">Customise Colours</h2></div><button id="closeColourModal" class="icon-button" type="button" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><div class="colour-controls"><section class="colour-picker-group" data-colour-target="primary"><div class="colour-picker-heading"><span>Primary Colour</span><i id="modalPrimaryColor" aria-hidden="true"></i></div><canvas class="colour-wheel" data-colour-wheel="primary" tabindex="0" role="slider" aria-label="Primary colour wheel. Use arrow keys to adjust hue and saturation."></canvas><input class="colour-tone" data-colour-tone="primary" type="range" min="0" max="1000" value="500" aria-label="Primary colour tone"><div class="chosen-colour"><span>Chosen</span><i id="primaryChosenPreview" aria-hidden="true"></i><code id="primaryChosenHex">#7C5CFC</code></div></section><div class="colour-picker-divider" aria-hidden="true"></div><section class="colour-picker-group" data-colour-target="secondary"><div class="colour-picker-heading"><span>Secondary Colour</span><i id="modalSecondaryColor" aria-hidden="true"></i></div><canvas class="colour-wheel" data-colour-wheel="secondary" tabindex="0" role="slider" aria-label="Secondary colour wheel. Use arrow keys to adjust hue and saturation."></canvas><input class="colour-tone" data-colour-tone="secondary" type="range" min="0" max="1000" value="500" aria-label="Secondary colour tone"><div class="chosen-colour"><span>Chosen</span><i id="secondaryChosenPreview" aria-hidden="true"></i><code id="secondaryChosenHex">#5CC8FF</code></div></section></div><div class="modal-actions"><button id="resetColoursButton" class="secondary-button" type="button">Reset Default</button><button id="saveColoursButton" class="primary-button" type="button">Save Colours</button></div></div></div>
+    <div id="colourModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="colourModalTitle"><div class="modal-card colour-modal-card"><div class="modal-header"><div><span class="eyebrow">APPEARANCE</span><h2 id="colourModalTitle">Customise Colours</h2></div><button id="closeColourModal" class="icon-button" type="button" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><div class="colour-controls"><section class="colour-picker-group" data-colour-target="primary"><div class="colour-picker-heading"><span>Primary Colour</span><i id="modalPrimaryColor" aria-hidden="true"></i></div><canvas class="colour-wheel" data-colour-wheel="primary" tabindex="0" role="slider" aria-label="Primary colour wheel. Use arrow keys to adjust hue and saturation."></canvas><input class="colour-tone" data-colour-tone="primary" type="range" min="0" max="1000" value="500" aria-label="Primary colour tone"><div class="chosen-colour"><span>Chosen</span><i id="primaryChosenPreview" aria-hidden="true"></i></div></section><div class="colour-picker-divider" aria-hidden="true"></div><section class="colour-picker-group" data-colour-target="secondary"><div class="colour-picker-heading"><span>Secondary Colour</span><i id="modalSecondaryColor" aria-hidden="true"></i></div><canvas class="colour-wheel" data-colour-wheel="secondary" tabindex="0" role="slider" aria-label="Secondary colour wheel. Use arrow keys to adjust hue and saturation."></canvas><input class="colour-tone" data-colour-tone="secondary" type="range" min="0" max="1000" value="500" aria-label="Secondary colour tone"><div class="chosen-colour"><span>Chosen</span><i id="secondaryChosenPreview" aria-hidden="true"></i></div></section></div><div class="modal-actions"><button id="resetColoursButton" class="secondary-button" type="button">Reset Default</button><button id="saveColoursButton" class="primary-button" type="button">Save Colours</button></div></div></div>
 
 
 <!-- JAVASCRIPT -->
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-<script type="module" src="./script.js?v=48"></script>
+<script type="module" src="./script.js?v=49"></script>
 
 <script>
     (function () {
-        const APP_BUILD = "v48";
+        const APP_BUILD = "v49";
         const RELOAD_KEY = "expense_sw_controller_build";
         let registration = null;
         const controllerAtBoot = navigator.serviceWorker && navigator.serviceWorker.controller;
