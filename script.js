@@ -4084,12 +4084,12 @@ function setupGuestImport() {
 }
 
 function setupAppearancePersistence() {
-    const modal = document.getElementById("colourModal"), wheel = document.getElementById("colourWheel"), wheelPanel = document.getElementById("colourWheelPanel");
-    const primary = document.getElementById("modalPrimaryColor"), secondary = document.getElementById("modalSecondaryColor"), selectedPreview = document.getElementById("selectedColourPreview");
+    const modal = document.getElementById("colourModal"), wheels = Array.from(document.querySelectorAll("[data-colour-wheel]"));
+    const primary = document.getElementById("modalPrimaryColor"), secondary = document.getElementById("modalSecondaryColor");
     const preview = document.getElementById("appearancePreview");
-    if (!modal || !wheel || !wheelPanel || !primary || !secondary || !selectedPreview) return;
-    const values = { primary: "#7C5CFC", secondary: "#5CC8FF" };
-    let activeTarget = null, dragging = false;
+    if (!modal || wheels.length !== 2 || !primary || !secondary) return;
+    const values = { primary: "#7C5CFC", secondary: "#5CC8FF" }, baseColours = { ...values }, tones = { primary: .5, secondary: .5 };
+    let pointerFrame = 0, pendingPointer = null, resizeFrame = 0;
     const hsvToHex = function (hue, saturation, value = 1) {
         const chroma = value * saturation, segment = hue / 60, x = chroma * (1 - Math.abs(segment % 2 - 1)), match = value - chroma;
         const rgb = segment < 1 ? [chroma, x, 0] : segment < 2 ? [x, chroma, 0] : segment < 3 ? [0, chroma, x] : segment < 4 ? [0, x, chroma] : segment < 5 ? [x, 0, chroma] : [chroma, 0, x];
@@ -4100,63 +4100,96 @@ function setupAppearancePersistence() {
         const max = Math.max(...rgb), min = Math.min(...rgb), delta = max - min;
         let hue = 0;
         if (delta) hue = ((max === rgb[0] ? (rgb[1] - rgb[2]) / delta : max === rgb[1] ? 2 + (rgb[2] - rgb[0]) / delta : 4 + (rgb[0] - rgb[1]) / delta) * 60 + 360) % 360;
-        return { hue: hue, saturation: max ? delta / max : 0 };
+        return { hue: hue, saturation: max ? delta / max : 0, value: max };
     };
-    const drawWheel = function () {
-        const context = wheel.getContext("2d"), size = wheel.width, radius = size / 2, image = context.createImageData(size, size), pixels = image.data;
-        for (let y = 0; y < size; y += 1) for (let x = 0; x < size; x += 1) {
-            const dx = x - radius, dy = y - radius, distance = Math.hypot(dx, dy), index = (y * size + x) * 4;
-            if (distance > radius) continue;
-            const hex = hsvToHex((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, Math.min(1, distance / radius));
-            const colour = parseInt(hex.slice(1), 16);
-            pixels[index] = colour >> 16; pixels[index + 1] = (colour >> 8) & 255; pixels[index + 2] = colour & 255; pixels[index + 3] = 255;
+    const mix = function (from, to, amount) {
+        const start = parseInt(from.slice(1), 16), end = parseInt(to.slice(1), 16);
+        return "#" + [16, 8, 0].map(function (shift) { return Math.round(((start >> shift) & 255) + ((((end >> shift) & 255) - ((start >> shift) & 255)) * amount)).toString(16).padStart(2, "0"); }).join("");
+    };
+    const colourAtTone = function (target) { return tones[target] <= .5 ? mix("#000000", baseColours[target], tones[target] * 2) : mix(baseColours[target], "#FFFFFF", (tones[target] - .5) * 2); };
+    const drawWheel = function (wheel) {
+        const rect = wheel.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const cssSize = Math.min(rect.width, rect.height), dpr = window.devicePixelRatio || 1, pixelSize = Math.round(cssSize * dpr);
+        if (wheel.width !== pixelSize || wheel.height !== pixelSize || !wheel.__wheelBackground) {
+            wheel.width = pixelSize; wheel.height = pixelSize;
+            const background = document.createElement("canvas"); background.width = pixelSize; background.height = pixelSize;
+            const backgroundContext = background.getContext("2d"), image = backgroundContext.createImageData(pixelSize, pixelSize), pixels = image.data, radius = pixelSize / 2;
+            for (let y = 0; y < pixelSize; y += 1) for (let x = 0; x < pixelSize; x += 1) {
+                const dx = x - radius, dy = y - radius, distance = Math.hypot(dx, dy), index = (y * pixelSize + x) * 4;
+                if (distance > radius) continue;
+                const hex = hsvToHex((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, Math.min(1, distance / radius));
+                const colour = parseInt(hex.slice(1), 16);
+                pixels[index] = colour >> 16; pixels[index + 1] = (colour >> 8) & 255; pixels[index + 2] = colour & 255; pixels[index + 3] = 255;
+            }
+            backgroundContext.putImageData(image, 0, 0);
+            wheel.__wheelBackground = background;
         }
-        context.putImageData(image, 0, 0);
-        if (!activeTarget) return;
-        const current = hexToHsv(values[activeTarget]), markerDistance = current.saturation * radius, markerAngle = current.hue * Math.PI / 180;
+        const context = wheel.getContext("2d"), target = wheel.dataset.colourWheel, hsv = hexToHsv(baseColours[target]), radius = cssSize / 2, markerDistance = hsv.saturation * radius, markerAngle = hsv.hue * Math.PI / 180;
+        context.setTransform(dpr, 0, 0, dpr, 0, 0); context.clearRect(0, 0, cssSize, cssSize); context.drawImage(wheel.__wheelBackground, 0, 0, cssSize, cssSize);
         context.beginPath(); context.arc(radius + Math.cos(markerAngle) * markerDistance, radius + Math.sin(markerAngle) * markerDistance, 7, 0, Math.PI * 2);
-        context.lineWidth = 3; context.strokeStyle = "#ffffff"; context.shadowColor = "rgba(0,0,0,.4)"; context.shadowBlur = 3; context.stroke(); context.shadowBlur = 0;
+        context.lineWidth = 3; context.strokeStyle = "#ffffff"; context.shadowColor = "rgba(0,0,0,.42)"; context.shadowBlur = 4; context.stroke(); context.shadowBlur = 0;
     };
     const updateControls = function () {
         primary.style.background = values.primary; secondary.style.background = values.secondary;
-        document.querySelectorAll("[data-colour-target]").forEach(function (button) { button.setAttribute("aria-pressed", String(button.dataset.colourTarget === activeTarget)); });
-        if (activeTarget) selectedPreview.style.background = values[activeTarget];
-        drawWheel();
+        ["primary", "secondary"].forEach(function (target) {
+            const chosen = document.getElementById(target + "ChosenPreview"), hex = document.getElementById(target + "ChosenHex"), tone = document.querySelector('[data-colour-tone="' + target + '"]');
+            if (chosen) chosen.style.background = values[target]; if (hex) hex.textContent = values[target].toUpperCase();
+            if (tone) { tone.value = String(Math.round(tones[target] * 1000)); tone.style.setProperty("--tone-current", values[target]); tone.style.setProperty("--tone-gradient", "linear-gradient(90deg,#000," + baseColours[target] + " 50%,#fff)"); }
+        });
+        wheels.forEach(drawWheel);
     };
     const refresh = function () { const styles = getComputedStyle(document.documentElement); if (preview) { preview.children[0].style.background = styles.getPropertyValue("--primary").trim(); preview.children[1].style.background = styles.getPropertyValue("--secondary").trim(); } renderSpendingBreakdown(); };
-    const apply = function () { document.documentElement.style.setProperty("--primary", values.primary); document.documentElement.style.setProperty("--secondary", values.secondary); updateControls(); refresh(); };
+    const apply = function () { values.primary = colourAtTone("primary"); values.secondary = colourAtTone("secondary"); document.documentElement.style.setProperty("--primary", values.primary); document.documentElement.style.setProperty("--secondary", values.secondary); updateControls(); refresh(); };
+    const setBaseFromValue = function (target, colour) {
+        const hsv = hexToHsv(colour); values[target] = colour;
+        if (hsv.value < .01) { baseColours[target] = "#000000"; tones[target] = 0; return; }
+        if (hsv.value > .99 && hsv.saturation < .01) { baseColours[target] = "#FFFFFF"; tones[target] = 1; return; }
+        baseColours[target] = colour; tones[target] = .5;
+    };
     modal.__appearanceRefresh = refresh;
     document.getElementById("openColourModal")?.addEventListener("click", function () {
         if (!modal.classList.contains("hidden")) return;
         const styles = getComputedStyle(document.documentElement);
         modal.__appearanceOriginal = { primary: styles.getPropertyValue("--primary").trim(), secondary: styles.getPropertyValue("--secondary").trim() };
         modal.__appearanceRestoreOnClose = true;
-        values.primary = modal.__appearanceOriginal.primary;
-        values.secondary = modal.__appearanceOriginal.secondary;
-        activeTarget = null;
-        wheelPanel.classList.add("hidden");
-        updateControls();
+        setBaseFromValue("primary", modal.__appearanceOriginal.primary);
+        setBaseFromValue("secondary", modal.__appearanceOriginal.secondary);
         history.pushState(createHistoryState(state.currentPage, "appearance"), "", window.location.href);
         modal.classList.remove("hidden");
         document.body.classList.add("modal-open");
+        requestAnimationFrame(updateControls);
         document.getElementById("closeColourModal")?.focus();
     });
-    document.querySelectorAll("[data-colour-target]").forEach(function (button) { button.addEventListener("click", function () { activeTarget = button.dataset.colourTarget; wheelPanel.classList.remove("hidden"); updateControls(); wheel.focus(); }); });
-    const pickColour = function (event) {
-        if (!activeTarget) return;
-        const rect = wheel.getBoundingClientRect(), scale = wheel.width / rect.width, radius = wheel.width / 2;
-        const dx = (event.clientX - rect.left) * scale - radius, dy = (event.clientY - rect.top) * scale - radius, distance = Math.hypot(dx, dy);
-        if (distance > radius) return;
-        values[activeTarget] = hsvToHex((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, Math.min(1, distance / radius));
-        apply();
+    const queuePointerUpdate = function (wheel, event) {
+        pendingPointer = { wheel: wheel, x: event.clientX, y: event.clientY };
+        if (pointerFrame) return;
+        pointerFrame = requestAnimationFrame(function () {
+            pointerFrame = 0;
+            const point = pendingPointer; pendingPointer = null;
+            if (!point) return;
+            const rect = point.wheel.getBoundingClientRect(), radius = Math.min(rect.width, rect.height) / 2, dx = point.x - rect.left - radius, dy = point.y - rect.top - radius, distance = Math.hypot(dx, dy);
+            if (!radius || distance > radius) return;
+            const target = point.wheel.dataset.colourWheel;
+            baseColours[target] = hsvToHex((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, Math.min(1, distance / radius));
+            apply();
+        });
     };
-    wheel.addEventListener("pointerdown", function (event) { dragging = true; wheel.setPointerCapture?.(event.pointerId); pickColour(event); });
-    wheel.addEventListener("pointermove", function (event) { if (dragging) pickColour(event); });
-    wheel.addEventListener("pointerup", function () { dragging = false; });
-    wheel.addEventListener("pointercancel", function () { dragging = false; });
-    wheel.addEventListener("keydown", function (event) { if (!activeTarget || !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return; const hsv = hexToHsv(values[activeTarget]); if (event.key === "ArrowLeft" || event.key === "ArrowRight") hsv.hue = (hsv.hue + (event.key === "ArrowRight" ? 4 : -4) + 360) % 360; else hsv.saturation = Math.max(0, Math.min(1, hsv.saturation + (event.key === "ArrowUp" ? .04 : -.04))); values[activeTarget] = hsvToHex(hsv.hue, hsv.saturation); apply(); event.preventDefault(); });
-    document.getElementById("saveColoursButton")?.addEventListener("click", function () { localStorage.setItem("expense_primary_color", values.primary); localStorage.setItem("expense_secondary_color", values.secondary); localStorage.setItem("expense_has_custom_colors", "true"); closeAppearanceModal({ restore: false }); showToast("Colours saved"); });
-    document.getElementById("resetColoursButton")?.addEventListener("click", function () { values.primary = "#7C5CFC"; values.secondary = "#5CC8FF"; apply(); });
+    wheels.forEach(function (wheel) {
+        let dragging = false;
+        wheel.addEventListener("pointerdown", function (event) { dragging = true; wheel.setPointerCapture?.(event.pointerId); queuePointerUpdate(wheel, event); });
+        wheel.addEventListener("pointermove", function (event) { if (dragging) queuePointerUpdate(wheel, event); });
+        wheel.addEventListener("pointerup", function () { dragging = false; });
+        wheel.addEventListener("pointercancel", function () { dragging = false; });
+        wheel.addEventListener("keydown", function (event) { if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return; const target = wheel.dataset.colourWheel, hsv = hexToHsv(baseColours[target]); if (event.key === "ArrowLeft" || event.key === "ArrowRight") hsv.hue = (hsv.hue + (event.key === "ArrowRight" ? 4 : -4) + 360) % 360; else hsv.saturation = Math.max(0, Math.min(1, hsv.saturation + (event.key === "ArrowUp" ? .04 : -.04))); baseColours[target] = hsvToHex(hsv.hue, hsv.saturation); apply(); event.preventDefault(); });
+    });
+    document.querySelectorAll("[data-colour-tone]").forEach(function (tone) { tone.addEventListener("input", function () { tones[tone.dataset.colourTone] = Number(tone.value) / 1000; apply(); }); });
+    const scheduleWheelResize = function () { if (resizeFrame) return; resizeFrame = requestAnimationFrame(function () { resizeFrame = 0; if (!modal.classList.contains("hidden")) updateControls(); }); };
+    window.addEventListener("resize", scheduleWheelResize, { passive: true });
+    window.addEventListener("orientationchange", scheduleWheelResize, { passive: true });
+    if (window.ResizeObserver) new ResizeObserver(scheduleWheelResize).observe(modal);
+    document.getElementById("saveColoursButton")?.addEventListener("click", function () { values.primary = values.primary.toUpperCase(); values.secondary = values.secondary.toUpperCase(); localStorage.setItem("expense_primary_color", values.primary); localStorage.setItem("expense_secondary_color", values.secondary); localStorage.setItem("expense_has_custom_colors", "true"); closeAppearanceModal({ restore: false }); showToast("Colours saved"); });
+    document.getElementById("resetColoursButton")?.addEventListener("click", function () { baseColours.primary = "#7C5CFC"; baseColours.secondary = "#5CC8FF"; tones.primary = .5; tones.secondary = .5; apply(); });
     document.getElementById("closeColourModal")?.addEventListener("click", function () { closeAppearanceModal({ restore: true }); });
     modal.addEventListener("click", function (event) { if (event.target === modal) closeAppearanceModal({ restore: true }); });
     document.addEventListener("keydown", function (event) { if (event.key === "Escape" && !modal.classList.contains("hidden")) closeAppearanceModal({ restore: true }); });
