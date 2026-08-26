@@ -152,6 +152,16 @@ body.auth-pending {
     background: #46474d;
 }
 
+/* Present from first paint until auth and its matching transaction snapshot agree. */
+body.dashboard-pending .balance-card > *,
+body.dashboard-pending .dashboard-spending-card > * {
+    visibility: hidden;
+}
+
+body.dashboard-pending .dashboard-spending-card {
+    min-height: 300px;
+}
+
 
 /* =========================================================
    5. LOGIN

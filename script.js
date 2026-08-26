@@ -56,6 +56,11 @@ const state = {
     currentBudget: null,
     unsubscribeBudget: null,
     spendingChart: null,
+    dashboardReady: false,
+    dashboardUid: null,
+    dashboardSignature: null,
+    dashboardSpendingSignature: null,
+    dashboardRenderCounts: { amount: 0, chartCreate: 0, chartUpdate: 0, empty: 0 },
     syncStatus: navigator.onLine ? "synced" : "offline",
     hasPendingWrites: false,
     syncFailed: false,
@@ -118,13 +123,12 @@ document.addEventListener("DOMContentLoaded", function () {
     loadLocalSettings();
     document.body.classList.add("dashboard-active");
     scheduleGreetingBoundaryCheck();
-    showApp();
     updateAll();
     applyLanguage(getLanguage());
     scheduleDashboardLayoutAssertion();
     window.addEventListener("resize", scheduleDashboardLayoutAssertion, { passive: true });
     document.addEventListener("visibilitychange", function () {
-        if (!document.hidden) { updateTodayDateLabel(); updateGreeting(); scheduleGreetingBoundaryCheck(); }
+        if (!document.hidden) { updateTodayDateLabel(); updateGreeting(); scheduleGreetingBoundaryCheck(); updateDashboard(); }
     });
 
 });
@@ -146,6 +150,7 @@ onAuthStateChanged(auth, function (user) {
         state.guestMode = false;
         state.transactionsLoaded = false;
         state.nickname = "";
+        beginDashboardLoad(user.uid);
 
         updateUserProfile(user);
         loadNickname(user);
@@ -162,8 +167,9 @@ onAuthStateChanged(auth, function (user) {
 
             state.currentUser = null;
             state.nickname = "";
+            resetDashboardDisplay();
             state.transactions = [];
-            state.transactionsLoaded = true;
+            state.transactionsLoaded = false;
 
             if (state.unsubscribeTransactions) {
                 state.unsubscribeTransactions();
@@ -289,10 +295,15 @@ function setupGuestLogin() {
             state.currentUser = null;
             state.transactions = loadGuestTransactions();
             state.transactionsLoaded = true;
+            state.dashboardUid = "guest";
+            state.dashboardReady = true;
+            state.dashboardSignature = null;
+            state.dashboardSpendingSignature = null;
 
             completeStartup("app");
 
             updateAll();
+            document.body.classList.remove("dashboard-pending");
 
             showToast("Guest mode");
 
@@ -379,6 +390,7 @@ async function logoutUser() {
 
         state.currentUser = null;
         state.guestMode = false;
+        resetDashboardDisplay();
         state.transactions = [];
 
         if (state.unsubscribeTransactions) {
@@ -444,6 +456,10 @@ function loadFirestoreTransactions(userId) {
             { includeMetadataChanges: true },
             function (snapshot) {
 
+                // An old listener can resolve after an account switch; never display
+                // its cached documents for the new account.
+                if (!state.currentUser || state.currentUser.uid !== userId || state.dashboardUid !== userId) return;
+
                 state.transactions =
                     snapshot.docs.map(
                         function (document) {
@@ -477,9 +493,11 @@ function loadFirestoreTransactions(userId) {
                     ).sort(sortTransactionsNewestFirst);
 
                 state.transactionsLoaded = true;
+                state.dashboardReady = true;
 
                 updatePendingWriteStatus(snapshot.metadata.hasPendingWrites);
                 updateAll();
+                document.body.classList.remove("dashboard-pending");
 
             },
             function (error) {
@@ -3066,7 +3084,7 @@ function setupBalanceToggle() {
                 !state.balanceVisible;
             localStorage.setItem("expense_balance_visible", String(state.balanceVisible));
             updateBalanceVisibilityUI();
-            setMoney("balanceAmount", getAllTimeBalance());
+            updateDashboard();
 
         }
     );
@@ -3904,32 +3922,76 @@ function updateAnalytics() {
 
 function renderSpendingBreakdownLegacy() {
     return;
+    /* Retained only as historical reference; it is deliberately non-executable.
     const expenses = getSelectedMonthTransactions().filter(function (item) { return item.type === "expense"; });
     const totals = expenses.reduce(function (all, item) { const key = item.category || "Other"; all[key] = (all[key] || 0) + Number(item.amount || 0); return all; }, {});
     const entries = Object.entries(totals).sort(function (a, b) { return b[1] - a[1]; }), total = entries.reduce(function (sum, item) { return sum + item[1]; }, 0);
     const empty = document.getElementById("spendingEmpty"), content = document.getElementById("spendingContent");
     if (empty) empty.classList.toggle("hidden", total > 0); if (content) content.classList.toggle("hidden", total <= 0);
-    if (!total || typeof Chart === "undefined") { if (state.spendingChart) { state.spendingChart.destroy(); state.spendingChart = null; } return; }
+    if (!total || typeof Chart === "undefined") return;
     document.getElementById("chartTotal").textContent = formatCurrency(total);
     const colors = entries.map(function (entry) { return getCategoryColor(entry[0]); });
     const legend = document.getElementById("spendingLegend"); legend.innerHTML = entries.map(function (entry, index) { const percent = Math.round(entry[1] / total * 100); return '<div class="legend-item"><span class="legend-dot" style="background:' + colors[index % colors.length] + '"></span><span>' + escapeHTML(entry[0]) + '</span><strong>' + formatCurrency(entry[1]) + '<small> · ' + percent + '%</small></strong></div>'; }).join("");
-    if (state.spendingChart) state.spendingChart.destroy();
+    if (state.spendingChart) return;
     state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", data: { labels: entries.map(function (entry) { return entry[0]; }), datasets: [{ data: entries.map(function (entry) { return entry[1]; }), backgroundColor: entries.map(function (_, index) { return colors[index % colors.length]; }), borderWidth: 0, borderRadius: 12, spacing: 2, hoverOffset: 6 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "74%", animation: { duration: 0 }, transitions: { active: { animation: { duration: 140 } } }, plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (ctx) { return ctx.label + ": " + formatCurrency(ctx.raw); } } } } } });
+    */
 }
 
 function updateDashboard() {
-    if (!state.authResolved) {
-        const balanceElement = document.getElementById("balanceAmount");
-        const statusElement = document.getElementById("balanceStatus");
-        if (balanceElement) balanceElement.textContent = "—";
-        if (statusElement) statusElement.textContent = "";
-        renderSpendingBreakdown();
-        return;
-    }
+    if (!isDashboardReady()) return;
     const balance = getAllTimeBalance();
-    setMoney("balanceAmount", balance);
-    const status = document.getElementById("balanceStatus"); if (status) status.textContent = balance > 0 ? "Healthy" : balance === 0 ? "Balanced" : "Over budget";
+    const balanceText = state.balanceVisible ? formatCurrency(balance) : "••••••";
+    const balanceStatus = balance > 0 ? "Healthy" : balance === 0 ? "Balanced" : "Over budget";
+    const signature = [state.dashboardUid, balanceText, balanceStatus].join("|");
+    if (state.dashboardSignature !== signature) {
+        const balanceElement = document.getElementById("balanceAmount");
+        const status = document.getElementById("balanceStatus");
+        if (balanceElement) balanceElement.textContent = balanceText;
+        if (status) status.textContent = balanceStatus;
+        state.dashboardSignature = signature;
+        recordDashboardRender("amount");
+    }
     updateBudgetUI(); renderSpendingBreakdown();
+}
+
+function isDashboardReady() {
+    return state.authResolved && state.dashboardReady && (state.guestMode || Boolean(state.currentUser && state.currentUser.uid === state.dashboardUid));
+}
+
+function beginDashboardLoad(uid) {
+    state.dashboardReady = false;
+    state.dashboardUid = uid;
+    state.dashboardSignature = null;
+    state.dashboardSpendingSignature = null;
+    state.transactions = [];
+    state.transactionsLoaded = false;
+    document.body.classList.add("dashboard-pending");
+    const balance = document.getElementById("balanceAmount"), status = document.getElementById("balanceStatus");
+    const empty = document.getElementById("spendingEmpty"), content = document.getElementById("spendingContent");
+    if (balance) balance.textContent = "";
+    if (status) status.textContent = "";
+    if (empty) empty.classList.add("hidden");
+    if (content) content.classList.add("hidden");
+}
+
+function resetDashboardDisplay() {
+    state.dashboardReady = false;
+    state.dashboardUid = null;
+    state.dashboardSignature = null;
+    state.dashboardSpendingSignature = null;
+    document.body.classList.add("dashboard-pending");
+    const balance = document.getElementById("balanceAmount"), status = document.getElementById("balanceStatus");
+    const empty = document.getElementById("spendingEmpty"), content = document.getElementById("spendingContent");
+    if (balance) balance.textContent = "";
+    if (status) status.textContent = "";
+    if (empty) empty.classList.add("hidden");
+    if (content) content.classList.add("hidden");
+}
+
+function recordDashboardRender(kind) {
+    state.dashboardRenderCounts[kind] += 1;
+    window.__expenseDashboardRenderStats = { ...state.dashboardRenderCounts, uid: state.dashboardUid };
+    console.debug("[dashboard render]", kind, window.__expenseDashboardRenderStats);
 }
 
 function persistGuestTransactions() { localStorage.setItem("expense_guest_transactions", JSON.stringify(state.transactions)); }
@@ -4057,16 +4119,17 @@ const chartExternalLabels = {
 
 function renderSpendingBreakdown() {
     const empty = document.getElementById("spendingEmpty"), content = document.getElementById("spendingContent");
-    const dataIsReady = state.authResolved && (state.guestMode || !state.currentUser || state.transactionsLoaded);
-    if (!dataIsReady) {
-        if (empty) empty.classList.add("hidden");
-        if (content) content.classList.add("hidden");
-        return;
-    }
+    if (!isDashboardReady()) return;
     const expenses = getSelectedMonthTransactions().filter(function (item) { return item.type === "expense"; });
     const totals = expenses.reduce(function (all, item) { const key = item.category || "Other"; all[key] = (all[key] || 0) + Number(item.amount || 0); return all; }, {});
     const entries = Object.entries(totals).sort(function (a, b) { return b[1] - a[1]; }), total = entries.reduce(function (sum, item) { return sum + item[1]; }, 0);
+    const styles = getComputedStyle(document.documentElement);
+    const visualSignature = [getLanguage(), styles.getPropertyValue("--primary").trim(), styles.getPropertyValue("--secondary").trim()].join("|");
+    const signature = [state.dashboardUid, state.selectedMonth, total, entries.map(function (entry) { return entry[0] + ":" + entry[1]; }).join(","), visualSignature].join("|");
+    if (state.dashboardSpendingSignature === signature) return;
+    state.dashboardSpendingSignature = signature;
     if (empty) empty.classList.toggle("hidden", total > 0); if (content) content.classList.toggle("hidden", total <= 0);
+    if (!total) recordDashboardRender("empty");
     if (!total || typeof Chart === "undefined") return;
     document.getElementById("chartTotal").textContent = formatCurrency(total);
     const colors = entries.map(function (entry) { return getCategoryColor(entry[0]); });
@@ -4079,9 +4142,11 @@ function renderSpendingBreakdown() {
         state.spendingChart.data.datasets[0].data = values;
         state.spendingChart.data.datasets[0].backgroundColor = colors;
         state.spendingChart.update("none");
+        recordDashboardRender("chartUpdate");
         return;
     }
     state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, borderRadius: 10, spacing: 2, hoverOffset: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "84%", animation: false, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false } } } });
+    recordDashboardRender("chartCreate");
 }
 
 /* =========================================================
