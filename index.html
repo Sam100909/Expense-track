@@ -17,7 +17,7 @@
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     >
 
-    <link rel="stylesheet" href="style.css?v=41">
+    <link rel="stylesheet" href="style.css?v=42">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" href="./app-icon-512.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="./app-icon-512.png" sizes="512x512">
@@ -738,20 +738,76 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-<script type="module" src="./script.js?v=41"></script>
+<script type="module" src="./script.js?v=42"></script>
 
 <script>
-    if ("serviceWorker" in navigator) {
-        window.addEventListener("load", function () {
-            navigator.serviceWorker.register("./sw.js")
-                .then(function () {
-                    console.log("Service Worker registered");
-                })
-                .catch(function (error) {
-                    console.error("Service Worker registration failed:", error);
+    (function () {
+        const APP_BUILD = "v42";
+        const RELOAD_KEY = "expense_sw_controller_build";
+        let registration = null;
+        const controllerAtBoot = navigator.serviceWorker && navigator.serviceWorker.controller;
+
+        function logServiceWorkerState(source) {
+            if (!registration) return;
+            caches.keys().then(function (cacheNames) {
+                console.info("[sw]", source, {
+                    build: APP_BUILD,
+                    controller: navigator.serviceWorker.controller?.scriptURL || null,
+                    active: registration.active?.scriptURL || null,
+                    waiting: registration.waiting?.scriptURL || null,
+                    installing: registration.installing?.scriptURL || null,
+                    caches: cacheNames.filter(function (name) { return name.startsWith("expense-track-v"); })
                 });
-        });
-    }
+            });
+        }
+
+        function activateWaitingWorker(source) {
+            if (!registration?.waiting) return;
+            console.info("[sw] requesting waiting worker activation:", source);
+            registration.waiting.postMessage({ type: "SKIP_WAITING", build: APP_BUILD });
+        }
+
+        function checkForUpdate(source) {
+            if (!registration || !navigator.onLine) return;
+            registration.update()
+                .then(function () { activateWaitingWorker(source); logServiceWorkerState(source); })
+                .catch(function (error) { console.warn("[sw] update check failed:", error); });
+        }
+
+        if ("serviceWorker" in navigator) {
+            navigator.serviceWorker.addEventListener("controllerchange", function () {
+                if (!controllerAtBoot || !navigator.onLine || sessionStorage.getItem(RELOAD_KEY) === APP_BUILD) return;
+                sessionStorage.setItem(RELOAD_KEY, APP_BUILD);
+                window.location.reload();
+            });
+
+            window.addEventListener("load", function () {
+                navigator.serviceWorker.register("./sw.js")
+                    .then(function (nextRegistration) {
+                        registration = nextRegistration;
+                        logServiceWorkerState("startup");
+                        activateWaitingWorker("startup");
+                        checkForUpdate("startup");
+                        registration.addEventListener("updatefound", function () {
+                            const installing = registration.installing;
+                            if (!installing) return;
+                            installing.addEventListener("statechange", function () {
+                                if (installing.state === "installed") activateWaitingWorker("installed");
+                                logServiceWorkerState("installing:" + installing.state);
+                            });
+                        });
+                    })
+                    .catch(function (error) {
+                        console.error("Service Worker registration failed:", error);
+                    });
+            });
+
+            window.addEventListener("pageshow", function () { checkForUpdate("pageshow"); });
+            document.addEventListener("visibilitychange", function () {
+                if (!document.hidden) checkForUpdate("foreground");
+            });
+        }
+    }());
 </script>
 
 </body>
