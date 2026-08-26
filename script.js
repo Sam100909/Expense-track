@@ -1762,7 +1762,7 @@ function displayTransactionView(transaction) {
         sign + formatCurrency(transaction.amount);
     document.getElementById("viewTransactionAmount").className =
         "view-transaction-amount " + amountClass;
-    document.getElementById("viewTransactionCategory").textContent = transaction.category || "—";
+    document.getElementById("viewTransactionCategory").textContent = transaction.category ? getCategoryDisplayName(transaction.category) : "—";
     document.getElementById("viewTransactionDate").textContent = transaction.date || "—";
     document.getElementById("viewTransactionNote").textContent = transaction.note || "—";
     document.getElementById("editTransactionButton").dataset.transactionId = transaction.id;
@@ -1882,7 +1882,7 @@ function updateCategoryOptions() {
         option.value =
             category;
 
-        option.textContent = t(category);
+        option.textContent = getCategoryDisplayName(category);
 
 
         select.appendChild(
@@ -2644,8 +2644,7 @@ function updateCategoryFilter() {
             option.value =
                 category;
 
-            option.textContent =
-                category;
+            option.textContent = getCategoryDisplayName(category);
 
 
             select.appendChild(
@@ -3954,7 +3953,7 @@ function renderAllTransactions() {
     const search = (document.getElementById("searchInput")?.value || "").toLowerCase(), type = document.getElementById("typeFilter")?.value || "all", category = document.getElementById("categoryFilter")?.value || "all", filter = document.getElementById("dateFilter")?.value || "selected";
     const today = new Date();
     const items = state.transactions.filter(function (item) {
-        const matchesText = String(item.category || "").toLowerCase().includes(search) || String(item.note || "").toLowerCase().includes(search);
+        const matchesText = String(item.category || "").toLowerCase().includes(search) || getCategoryDisplayName(item.category || "").toLowerCase().includes(search) || String(item.note || "").toLowerCase().includes(search);
         const matchesType = type === "all" || item.type === type, matchesCategory = category === "all" || item.category === category;
         let matchesDate = true; const itemDate = new Date(String(item.date || "") + "T00:00:00");
         if (filter === "selected") matchesDate = isInSelectedMonth(item);
@@ -3975,6 +3974,7 @@ function renderAllTransactions() {
             const row = document.createElement("article"), amountClass = item.type === "income" ? "income" : "expense";
             row.className = "transaction-item compact-transaction " + amountClass;
             row.innerHTML = '<div class="transaction-info"><strong>' + escapeHTML(item.category || "Other") + '</strong><span>' + escapeHTML(item.note || item.type) + '</span></div><strong class="transaction-amount ' + amountClass + '">' + (item.type === "income" ? "+" : "−") + formatCurrency(item.amount) + '</strong><div class="transaction-row-actions"><button type="button" class="text-button" data-edit-transaction="' + escapeHTML(item.id) + '">Edit</button><button type="button" class="text-button transaction-delete" data-delete-transaction="' + escapeHTML(item.id) + '">Delete</button></div>';
+            row.querySelector(".transaction-info strong").textContent = getCategoryDisplayName(item.category || "Other");
             row.querySelector(".transaction-info span")?.remove();
             const editButton = row.querySelector("[data-edit-transaction]"), deleteButton = row.querySelector("[data-delete-transaction]");
             editButton.className = "transaction-icon-action"; deleteButton.className = "transaction-icon-action transaction-delete";
@@ -4314,8 +4314,8 @@ function renderSpendingBreakdown() {
     document.getElementById("chartTotal").textContent = formatCurrency(total);
     const colors = entries.map(function (entry) { return getCategoryColor(entry[0]); });
     const legend = document.getElementById("spendingLegend");
-    if (legend) legend.innerHTML = entries.map(function (entry, index) { const percentage = total > 0 ? (entry[1] / total) * 100 : 0; const label = Number.isInteger(percentage) ? String(percentage) : percentage.toFixed(1).replace(/\.0$/, ""); return '<span class="chart-legend-item"><i style="background:' + colors[index] + '"></i><span>' + escapeHTML(t(entry[0])) + '</span><small>' + label + '%</small></span>'; }).join("");
-    const labels = entries.map(function (entry) { return entry[0]; });
+    if (legend) legend.innerHTML = entries.map(function (entry, index) { const percentage = total > 0 ? (entry[1] / total) * 100 : 0; const label = Number.isInteger(percentage) ? String(percentage) : percentage.toFixed(1).replace(/\.0$/, ""); return '<span class="chart-legend-item"><i style="background:' + colors[index] + '"></i><span>' + escapeHTML(getCategoryDisplayName(entry[0])) + '</span><small>' + label + '%</small></span>'; }).join("");
+    const labels = entries.map(function (entry) { return getCategoryDisplayName(entry[0]); });
     const values = entries.map(function (entry) { return entry[1]; });
     if (state.spendingChart) {
         state.spendingChart.data.labels = labels;
@@ -4601,7 +4601,7 @@ function setupBudget() {
         document.getElementById("budgetModalTitle").textContent = category ? "Edit Category Budget" : "Add Category Budget";
         document.getElementById("budgetMonthName").textContent = monthLabel();
         document.getElementById("budgetCurrencyPrefix").textContent = (formatCurrency(0).match(/^\S+/) || [state.currency])[0];
-        select.innerHTML = '<option value="">Select category</option>' + getBudgetCategories().map(function (name) { return '<option value="' + escapeHTML(name) + '">' + escapeHTML(name) + '</option>'; }).join("");
+        select.innerHTML = '<option value="">' + t("Select category") + '</option>' + getBudgetCategories().map(function (name) { return '<option value="' + escapeHTML(name) + '">' + escapeHTML(getCategoryDisplayName(name)) + '</option>'; }).join("");
         select.value = category || "";
         select.disabled = Boolean(category);
         document.getElementById("budgetAmountInput").value = category ? getCurrentCategoryBudgets()[category] || "" : "";
@@ -4652,6 +4652,7 @@ function updateBudgetUI() {
     if (!entries.length) { list.innerHTML = ""; return; }
     section.querySelector("#categoryBudgetHint").textContent = monthLabel();
     list.innerHTML = entries.map(function (item) { const status = item.over ? formatCurrency(item.spent - item.budget) + " over budget" : formatCurrency(item.budget - item.spent) + " remaining"; return '<div class="category-budget-row' + (item.over ? ' over' : '') + '"><div class="category-budget-row-top"><strong>' + escapeHTML(item.category) + '</strong><span>' + formatCurrency(item.spent) + ' / ' + formatCurrency(item.budget) + '</span></div><div class="category-progress"><span style="width:' + Math.min(item.percent, 100) + '%"></span></div><div class="category-budget-status">' + item.percent + '% used · ' + status + '</div><div class="budget-row-actions"><button type="button" class="text-button" data-edit-budget="' + escapeHTML(item.category) + '">Edit</button><button type="button" class="text-button budget-delete" data-delete-budget="' + escapeHTML(item.category) + '">Delete</button></div></div>'; }).join("");
+    list.querySelectorAll(".category-budget-row-top strong").forEach(function (label, index) { label.textContent = getCategoryDisplayName(entries[index].category); });
     list.querySelectorAll(".category-budget-status").forEach(function (status) { const raw = status.dataset.i18nSource || status.textContent; status.dataset.i18nSource = raw; status.textContent = getLanguage() === "zh" ? raw.replace("used", t("used")).replace("over budget", t("over budget")).replace("remaining", t("remaining")) : raw; });
     list.querySelectorAll("[data-edit-budget],[data-delete-budget]").forEach(function (button) { const editing = Boolean(button.dataset.editBudget); button.classList.add("budget-icon-action"); button.setAttribute("aria-label", t(editing ? "Edit Category Budget" : "Delete Category Budget")); button.setAttribute("title", t(editing ? "Edit" : "Delete")); button.innerHTML = '<i class="fa-solid fa-' + (editing ? "pen" : "trash") + '"></i>'; });
 }
@@ -4729,6 +4730,11 @@ function t(value) {
     if (getLanguage() !== "zh" || typeof value !== "string") return value;
     if (translations.zh[value]) return translations.zh[value];
     return value.replace(/Reference rate:/g, "參考匯率：").replace(/Last updated:/g, "最後更新：").replace(/No transactions for/g, "沒有符合以下條件的交易").replace(/this filter/g, "此篩選條件").replace(/over budget/g, "超出預算").replace(/remaining/g, "剩餘").replace(/used/g, "已使用").replace(/cached/g, "快取");
+}
+
+function getCategoryDisplayName(category, language = getLanguage()) {
+    const value = String(category || "Other");
+    return language === "zh" ? (translations.zh[value] || value) : value;
 }
 
 function applyLanguage(language) {
