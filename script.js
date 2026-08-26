@@ -4037,7 +4037,7 @@ function updateDashboard() {
         const balanceElement = document.getElementById("balanceAmount");
         const status = document.getElementById("balanceStatus");
         if (balanceElement) balanceElement.textContent = balanceText;
-        if (status) status.textContent = balanceStatus;
+        if (status) status.textContent = t(balanceStatus);
         state.dashboardSignature = signature;
         recordDashboardRender("amount");
     }
@@ -4592,7 +4592,7 @@ function setupCurrencyConverter() {
     convertCurrency();
 }
 
-document.addEventListener("DOMContentLoaded", function () { document.getElementById("dateFilter").value = "selected"; setupSyncStatus(); setupMonthSelector(); updateTodayDateLabel(); scheduleSelectedDateMidnightCheck(); setupBudget(); applyBudgetPageLanguage(); setupGuestImport(); setupAppearancePersistence(); setupCurrencyConverter(); updateDashboardControlsVisibility(); updateAll(); });
+document.addEventListener("DOMContentLoaded", function () { document.getElementById("dateFilter").value = "selected"; setupSyncStatus(); setupMonthSelector(); updateTodayDateLabel(); scheduleSelectedDateMidnightCheck(); setupBudget(); setupGuestImport(); setupAppearancePersistence(); setupCurrencyConverter(); updateDashboardControlsVisibility(); updateAll(); });
 onAuthStateChanged(auth, function (user) {
     if (!user) { if (state.unsubscribeBudget) { state.unsubscribeBudget(); state.unsubscribeBudget = null; } state.currentBudget = null; updateBudgetUI(); return; }
     loadBudget(); const guestItems = loadGuestTransactions();
@@ -4656,34 +4656,6 @@ function setupBudget() {
             catch (error) { console.error("Failed to delete category budget:", error); showToast("Failed to delete category budget", true); }
         }
     });
-}
-
-function applyBudgetPageLanguage() {
-    const card = document.querySelector("#budgetPageContent .budget-card");
-    const setText = function (element, key) { if (element) element.textContent = t(key); };
-    if (card) {
-        [
-            [".budget-heading .eyebrow", "PLAN"],
-            ["#budgetTitle", "Category Budgets"],
-            [".category-budget-title .eyebrow", "CATEGORY BUDGETS"],
-            ["#addCategoryBudgetButton", "+ Add Category Budget"]
-        ].forEach(function ([selector, key]) { setText(card.querySelector(selector), key); });
-        if (state.currentUser && !state.guestMode) {
-            setText(card.querySelector("#budgetEmpty strong"), "No category budgets set");
-            setText(card.querySelector("#budgetEmpty span"), "Add a category budget to track your spending.");
-        }
-    }
-    const modal = document.getElementById("budgetModal");
-    if (!modal) return;
-    [
-        [".modal-header .eyebrow", "CATEGORY BUDGET"],
-        ['label[for="budgetAmountInput"]', "Amount"],
-        ['label[for="budgetCategorySelect"]', "Category"],
-        ["#cancelBudgetButton", "Cancel"],
-        ['button[type="submit"]', "Save"]
-    ].forEach(function ([selector, key]) { setText(modal.querySelector(selector), key); });
-    const closeButton = modal.querySelector("#closeBudgetModal");
-    if (closeButton) closeButton.setAttribute("aria-label", t("Close"));
 }
 
 function updateBudgetUI() {
@@ -4774,8 +4746,7 @@ function getLanguage() { return localStorage.getItem("expense_language") === "zh
 function getLocale() { return getLanguage() === "zh" ? "zh-Hans-MY" : "en-GB"; }
 function t(value) {
     if (getLanguage() !== "zh" || typeof value !== "string") return value;
-    if (translations.zh[value]) return translations.zh[value];
-    return value.replace(/Reference rate:/g, "參考匯率：").replace(/Last updated:/g, "最後更新：").replace(/No transactions for/g, "沒有符合以下條件的交易").replace(/this filter/g, "此篩選條件").replace(/over budget/g, "超出預算").replace(/remaining/g, "剩餘").replace(/used/g, "已使用").replace(/cached/g, "快取");
+    return translations.zh[value] || value;
 }
 
 function getCategoryDisplayName(category, language = getLanguage()) {
@@ -4792,7 +4763,6 @@ function applyLanguage(language) {
     const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
     nodes.forEach(function (node) { const raw = node.__sourceText || node.nodeValue; node.__sourceText = raw; const trimmed = raw.trim(), translated = t(trimmed); node.nodeValue = raw.replace(trimmed, translated); });
     document.querySelectorAll("[placeholder],[aria-label]").forEach(function (element) { ["placeholder", "aria-label"].forEach(function (attribute) { const key = "i18n" + attribute, value = element.dataset[key] || element.getAttribute(attribute); if (value) { element.dataset[key] = value; element.setAttribute(attribute, t(value)); } }); });
-    applyBudgetPageLanguage();
 }
 
 function updateBudgetUILegacy2() {
