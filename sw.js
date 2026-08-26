@@ -1,12 +1,12 @@
 // Bump this value whenever app-shell files change. The cache-first fetch
 // strategy otherwise continues serving an older HTML/JavaScript bundle.
-const CACHE_NAME = "expense-track-v59";
+const CACHE_NAME = "expense-track-v60";
 
 const FILES_TO_CACHE = [
 "./",
 "./index.html",
-"./style.css?v=59",
-"./script.js?v=59",
+"./style.css?v=60",
+"./script.js?v=60",
 "./firebase-config.js",
 "./manifest.json",
 "./app-icon.png",
@@ -21,6 +21,9 @@ event.waitUntil(
 caches.open(CACHE_NAME)
 .then(function (cache) {
 return cache.addAll(FILES_TO_CACHE);
+})
+.then(function () {
+return self.skipWaiting();
 })
 );
 
@@ -46,9 +49,10 @@ return caches.delete(name);
 })
 );
 })
+.then(function () {
+return self.clients.claim();
+})
 );
-
-self.clients.claim();
 
 });
 

@@ -3339,15 +3339,13 @@ body.dark .chart-legend-item { color:var(--text-secondary); }
 *, *::before, *::after { -webkit-tap-highlight-color: transparent; }
 @media (max-width:760px) {
     html:has(body.dashboard-active),
-    body.dashboard-active {
-        height:100dvh;
-        overflow:hidden;
-        overscroll-behavior:none;
-    }
+    body.dashboard-active { overscroll-behavior-y:auto; }
     body.dashboard-active .main-content {
         height:100dvh;
         min-height:100dvh;
-        overflow:hidden;
+        box-sizing:border-box;
+        overflow:visible;
+        overscroll-behavior-y:auto;
     }
     .main-content { width:100%; min-width:0; margin-left:0; padding:18px 16px calc(104px + env(safe-area-inset-bottom)); overflow-x:hidden; }
     .topbar,
