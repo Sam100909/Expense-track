@@ -987,7 +987,11 @@ function navigateToPage(pageName) {
 }
 
 function dismissActiveModalForNavigation() {
-    if (!document.getElementById("colourModal")?.classList.contains("hidden")) document.getElementById("cancelColoursButton")?.click();
+    const colourModal = document.getElementById("colourModal");
+    if (colourModal && !colourModal.classList.contains("hidden")) {
+        hideAppearanceModal({ restore: true });
+        return true;
+    }
     const transactionOpen = state.activeModal === "transaction" || !document.getElementById("transactionModal")?.classList.contains("hidden");
     const budgetOpen = state.activeModal === "budget" || !document.getElementById("budgetModal")?.classList.contains("hidden");
     if (transactionOpen) {
@@ -1640,7 +1644,41 @@ function restoreModalFromHistory(entry) {
     hideTransactionModal();
     hideTransactionView();
     hideBudgetModal();
+    hideAppearanceModal();
 
+}
+
+function closeAppearanceModal(options = {}) {
+    const modal = document.getElementById("colourModal");
+    if (!modal || modal.classList.contains("hidden")) return;
+
+    modal.__appearanceRestoreOnClose = options.restore !== false;
+    if (history.state?.expenseTracker && history.state.modal === "appearance") {
+        history.back();
+        return;
+    }
+    hideAppearanceModal({ restore: modal.__appearanceRestoreOnClose });
+}
+
+function hideAppearanceModal(options = {}) {
+    const modal = document.getElementById("colourModal");
+    if (!modal) return;
+
+    const restore = options.restore !== undefined
+        ? options.restore
+        : modal.__appearanceRestoreOnClose !== false;
+    const original = modal.__appearanceOriginal;
+    if (restore && original) {
+        document.documentElement.style.setProperty("--primary", original.primary);
+        document.documentElement.style.setProperty("--secondary", original.secondary);
+        modal.__appearanceRefresh?.();
+    }
+
+    modal.classList.add("hidden");
+    modal.__appearanceOriginal = null;
+    modal.__appearanceRestoreOnClose = true;
+    document.body.classList.remove("modal-open");
+    document.activeElement?.blur();
 }
 
 function closeBudgetModal() {
@@ -4047,16 +4085,30 @@ function setupGuestImport() {
 
 function setupAppearancePersistence() {
     const modal = document.getElementById("colourModal"), primary = document.getElementById("modalPrimaryColor"), secondary = document.getElementById("modalSecondaryColor");
-    const preview = document.getElementById("appearancePreview"); let original = null;
+    const preview = document.getElementById("appearancePreview");
+    if (!modal || !primary || !secondary) return;
     const refresh = function () { const styles = getComputedStyle(document.documentElement); if (preview) { preview.children[0].style.background = styles.getPropertyValue("--primary").trim(); preview.children[1].style.background = styles.getPropertyValue("--secondary").trim(); } renderSpendingBreakdown(); };
     const apply = function () { document.documentElement.style.setProperty("--primary", primary.value); document.documentElement.style.setProperty("--secondary", secondary.value); refresh(); };
-    const close = function (restore) { if (restore && original) { document.documentElement.style.setProperty("--primary", original.primary); document.documentElement.style.setProperty("--secondary", original.secondary); refresh(); } modal?.classList.add("hidden"); document.body.classList.remove("modal-open"); document.activeElement?.blur(); };
-    document.getElementById("openColourModal")?.addEventListener("click", function () { const styles = getComputedStyle(document.documentElement); original = { primary: styles.getPropertyValue("--primary").trim(), secondary: styles.getPropertyValue("--secondary").trim() }; primary.value = original.primary; secondary.value = original.secondary; modal.classList.remove("hidden"); document.body.classList.add("modal-open"); primary.focus(); });
+    modal.__appearanceRefresh = refresh;
+    document.getElementById("openColourModal")?.addEventListener("click", function () {
+        if (!modal.classList.contains("hidden")) return;
+        const styles = getComputedStyle(document.documentElement);
+        modal.__appearanceOriginal = { primary: styles.getPropertyValue("--primary").trim(), secondary: styles.getPropertyValue("--secondary").trim() };
+        modal.__appearanceRestoreOnClose = true;
+        primary.value = modal.__appearanceOriginal.primary;
+        secondary.value = modal.__appearanceOriginal.secondary;
+        history.pushState(createHistoryState(state.currentPage, "appearance"), "", window.location.href);
+        modal.classList.remove("hidden");
+        document.body.classList.add("modal-open");
+        primary.focus();
+    });
     [primary, secondary].forEach(function (input) { input?.addEventListener("input", apply); });
-    document.getElementById("saveColoursButton")?.addEventListener("click", function () { localStorage.setItem("expense_primary_color", primary.value); localStorage.setItem("expense_secondary_color", secondary.value); localStorage.setItem("expense_has_custom_colors", "true"); close(false); showToast("Colours saved"); });
+    document.getElementById("saveColoursButton")?.addEventListener("click", function () { localStorage.setItem("expense_primary_color", primary.value); localStorage.setItem("expense_secondary_color", secondary.value); localStorage.setItem("expense_has_custom_colors", "true"); closeAppearanceModal({ restore: false }); showToast("Colours saved"); });
     document.getElementById("resetColoursButton")?.addEventListener("click", function () { primary.value = "#7C5CFC"; secondary.value = "#5CC8FF"; apply(); });
-    document.getElementById("cancelColoursButton")?.addEventListener("click", function () { close(true); }); document.getElementById("closeColourModal")?.addEventListener("click", function () { close(true); });
-    modal?.addEventListener("click", function (event) { if (event.target === modal) close(true); }); document.addEventListener("keydown", function (event) { if (event.key === "Escape" && !modal?.classList.contains("hidden")) close(true); }); refresh();
+    document.getElementById("closeColourModal")?.addEventListener("click", function () { closeAppearanceModal({ restore: true }); });
+    modal.addEventListener("click", function (event) { if (event.target === modal) closeAppearanceModal({ restore: true }); });
+    document.addEventListener("keydown", function (event) { if (event.key === "Escape" && !modal.classList.contains("hidden")) closeAppearanceModal({ restore: true }); });
+    refresh();
 }
 
 function applySavedAccentColors() {
