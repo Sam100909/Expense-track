@@ -2628,8 +2628,7 @@ function updateCategoryFilter() {
     ];
 
 
-    select.innerHTML =
-        '<option value="all">All categories</option>';
+    select.innerHTML = '<option value="all">' + t("All categories") + '</option>';
 
 
     unique.forEach(
@@ -2658,6 +2657,16 @@ function updateCategoryFilter() {
     select.value =
         current;
 
+}
+
+function refreshTransactionFilterLanguage() {
+    const searchButton = document.getElementById("toggleTransactionFilters"), searchInput = document.getElementById("searchInput"), type = document.getElementById("typeFilter"), date = document.getElementById("dateFilter"), category = document.getElementById("categoryFilter"), selectedMonth = document.getElementById("selectedMonthInput");
+    if (searchButton) searchButton.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> ' + t("Search");
+    if (searchInput) searchInput.placeholder = t("Search transactions");
+    if (type) { type.setAttribute("aria-label", t("Filter by type")); Array.from(type.options).forEach(function (option) { option.textContent = t(option.value === "all" ? "All types" : option.value === "income" ? "Income" : "Expense"); }); }
+    if (category) category.setAttribute("aria-label", t("Filter by category"));
+    if (selectedMonth) selectedMonth.setAttribute("aria-label", t("Filter by selected month"));
+    if (date) { date.setAttribute("aria-label", t("Filter by date")); Array.from(date.options).forEach(function (option) { const labels = { selected: "Selected month", all: "All time", today: "Today", week: "Last 7 days", month: "This month" }; option.textContent = t(labels[option.value]); }); }
 }
 
 
@@ -3300,6 +3309,13 @@ function setupNicknameSetting() {
             if (button) button.disabled = false;
         }
     });
+}
+
+function refreshNicknameLanguage() {
+    const input = document.getElementById("nicknameInput"), button = document.getElementById("saveNicknameButton"), row = input?.closest(".setting-row");
+    if (input) { input.placeholder = t("Your nickname"); input.setAttribute("aria-label", t("Nickname")); }
+    if (button) button.textContent = t("Save");
+    if (row) { const heading = row.querySelector("strong"), description = row.querySelector("div span"); if (heading) heading.textContent = t("Nickname"); if (description) description.textContent = t("Shown in your Dashboard greeting"); }
 }
 
 
@@ -4740,7 +4756,7 @@ function getCategoryDisplayName(category, language = getLanguage()) {
 function applyLanguage(language) {
     localStorage.setItem("expense_language", language === "zh" ? "zh" : "en");
     const select = document.getElementById("languageSelect"); if (select) select.value = getLanguage();
-    updateAll(); updateBudgetUI(); updateTodayDateLabel();
+    updateAll(); refreshTransactionFilterLanguage(); refreshNicknameLanguage(); updateBudgetUI(); updateTodayDateLabel();
     const modalTitle = document.querySelector("#transactionModal:not(.hidden) h2"); if (modalTitle) modalTitle.textContent = getTransactionModalTitle();
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
