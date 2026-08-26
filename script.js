@@ -4084,27 +4084,79 @@ function setupGuestImport() {
 }
 
 function setupAppearancePersistence() {
-    const modal = document.getElementById("colourModal"), primary = document.getElementById("modalPrimaryColor"), secondary = document.getElementById("modalSecondaryColor");
+    const modal = document.getElementById("colourModal"), wheel = document.getElementById("colourWheel"), wheelPanel = document.getElementById("colourWheelPanel");
+    const primary = document.getElementById("modalPrimaryColor"), secondary = document.getElementById("modalSecondaryColor"), selectedPreview = document.getElementById("selectedColourPreview");
     const preview = document.getElementById("appearancePreview");
-    if (!modal || !primary || !secondary) return;
+    if (!modal || !wheel || !wheelPanel || !primary || !secondary || !selectedPreview) return;
+    const values = { primary: "#7C5CFC", secondary: "#5CC8FF" };
+    let activeTarget = null, dragging = false;
+    const hsvToHex = function (hue, saturation, value = 1) {
+        const chroma = value * saturation, segment = hue / 60, x = chroma * (1 - Math.abs(segment % 2 - 1)), match = value - chroma;
+        const rgb = segment < 1 ? [chroma, x, 0] : segment < 2 ? [x, chroma, 0] : segment < 3 ? [0, chroma, x] : segment < 4 ? [0, x, chroma] : segment < 5 ? [x, 0, chroma] : [chroma, 0, x];
+        return "#" + rgb.map(function (channel) { return Math.round((channel + match) * 255).toString(16).padStart(2, "0"); }).join("");
+    };
+    const hexToHsv = function (hex) {
+        const value = parseInt(hex.slice(1), 16), rgb = [value >> 16, (value >> 8) & 255, value & 255].map(function (channel) { return channel / 255; });
+        const max = Math.max(...rgb), min = Math.min(...rgb), delta = max - min;
+        let hue = 0;
+        if (delta) hue = ((max === rgb[0] ? (rgb[1] - rgb[2]) / delta : max === rgb[1] ? 2 + (rgb[2] - rgb[0]) / delta : 4 + (rgb[0] - rgb[1]) / delta) * 60 + 360) % 360;
+        return { hue: hue, saturation: max ? delta / max : 0 };
+    };
+    const drawWheel = function () {
+        const context = wheel.getContext("2d"), size = wheel.width, radius = size / 2, image = context.createImageData(size, size), pixels = image.data;
+        for (let y = 0; y < size; y += 1) for (let x = 0; x < size; x += 1) {
+            const dx = x - radius, dy = y - radius, distance = Math.hypot(dx, dy), index = (y * size + x) * 4;
+            if (distance > radius) continue;
+            const hex = hsvToHex((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, Math.min(1, distance / radius));
+            const colour = parseInt(hex.slice(1), 16);
+            pixels[index] = colour >> 16; pixels[index + 1] = (colour >> 8) & 255; pixels[index + 2] = colour & 255; pixels[index + 3] = 255;
+        }
+        context.putImageData(image, 0, 0);
+        if (!activeTarget) return;
+        const current = hexToHsv(values[activeTarget]), markerDistance = current.saturation * radius, markerAngle = current.hue * Math.PI / 180;
+        context.beginPath(); context.arc(radius + Math.cos(markerAngle) * markerDistance, radius + Math.sin(markerAngle) * markerDistance, 7, 0, Math.PI * 2);
+        context.lineWidth = 3; context.strokeStyle = "#ffffff"; context.shadowColor = "rgba(0,0,0,.4)"; context.shadowBlur = 3; context.stroke(); context.shadowBlur = 0;
+    };
+    const updateControls = function () {
+        primary.style.background = values.primary; secondary.style.background = values.secondary;
+        document.querySelectorAll("[data-colour-target]").forEach(function (button) { button.setAttribute("aria-pressed", String(button.dataset.colourTarget === activeTarget)); });
+        if (activeTarget) selectedPreview.style.background = values[activeTarget];
+        drawWheel();
+    };
     const refresh = function () { const styles = getComputedStyle(document.documentElement); if (preview) { preview.children[0].style.background = styles.getPropertyValue("--primary").trim(); preview.children[1].style.background = styles.getPropertyValue("--secondary").trim(); } renderSpendingBreakdown(); };
-    const apply = function () { document.documentElement.style.setProperty("--primary", primary.value); document.documentElement.style.setProperty("--secondary", secondary.value); refresh(); };
+    const apply = function () { document.documentElement.style.setProperty("--primary", values.primary); document.documentElement.style.setProperty("--secondary", values.secondary); updateControls(); refresh(); };
     modal.__appearanceRefresh = refresh;
     document.getElementById("openColourModal")?.addEventListener("click", function () {
         if (!modal.classList.contains("hidden")) return;
         const styles = getComputedStyle(document.documentElement);
         modal.__appearanceOriginal = { primary: styles.getPropertyValue("--primary").trim(), secondary: styles.getPropertyValue("--secondary").trim() };
         modal.__appearanceRestoreOnClose = true;
-        primary.value = modal.__appearanceOriginal.primary;
-        secondary.value = modal.__appearanceOriginal.secondary;
+        values.primary = modal.__appearanceOriginal.primary;
+        values.secondary = modal.__appearanceOriginal.secondary;
+        activeTarget = null;
+        wheelPanel.classList.add("hidden");
+        updateControls();
         history.pushState(createHistoryState(state.currentPage, "appearance"), "", window.location.href);
         modal.classList.remove("hidden");
         document.body.classList.add("modal-open");
-        primary.focus();
+        document.getElementById("closeColourModal")?.focus();
     });
-    [primary, secondary].forEach(function (input) { input?.addEventListener("input", apply); });
-    document.getElementById("saveColoursButton")?.addEventListener("click", function () { localStorage.setItem("expense_primary_color", primary.value); localStorage.setItem("expense_secondary_color", secondary.value); localStorage.setItem("expense_has_custom_colors", "true"); closeAppearanceModal({ restore: false }); showToast("Colours saved"); });
-    document.getElementById("resetColoursButton")?.addEventListener("click", function () { primary.value = "#7C5CFC"; secondary.value = "#5CC8FF"; apply(); });
+    document.querySelectorAll("[data-colour-target]").forEach(function (button) { button.addEventListener("click", function () { activeTarget = button.dataset.colourTarget; wheelPanel.classList.remove("hidden"); updateControls(); wheel.focus(); }); });
+    const pickColour = function (event) {
+        if (!activeTarget) return;
+        const rect = wheel.getBoundingClientRect(), scale = wheel.width / rect.width, radius = wheel.width / 2;
+        const dx = (event.clientX - rect.left) * scale - radius, dy = (event.clientY - rect.top) * scale - radius, distance = Math.hypot(dx, dy);
+        if (distance > radius) return;
+        values[activeTarget] = hsvToHex((Math.atan2(dy, dx) * 180 / Math.PI + 360) % 360, Math.min(1, distance / radius));
+        apply();
+    };
+    wheel.addEventListener("pointerdown", function (event) { dragging = true; wheel.setPointerCapture?.(event.pointerId); pickColour(event); });
+    wheel.addEventListener("pointermove", function (event) { if (dragging) pickColour(event); });
+    wheel.addEventListener("pointerup", function () { dragging = false; });
+    wheel.addEventListener("pointercancel", function () { dragging = false; });
+    wheel.addEventListener("keydown", function (event) { if (!activeTarget || !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return; const hsv = hexToHsv(values[activeTarget]); if (event.key === "ArrowLeft" || event.key === "ArrowRight") hsv.hue = (hsv.hue + (event.key === "ArrowRight" ? 4 : -4) + 360) % 360; else hsv.saturation = Math.max(0, Math.min(1, hsv.saturation + (event.key === "ArrowUp" ? .04 : -.04))); values[activeTarget] = hsvToHex(hsv.hue, hsv.saturation); apply(); event.preventDefault(); });
+    document.getElementById("saveColoursButton")?.addEventListener("click", function () { localStorage.setItem("expense_primary_color", values.primary); localStorage.setItem("expense_secondary_color", values.secondary); localStorage.setItem("expense_has_custom_colors", "true"); closeAppearanceModal({ restore: false }); showToast("Colours saved"); });
+    document.getElementById("resetColoursButton")?.addEventListener("click", function () { values.primary = "#7C5CFC"; values.secondary = "#5CC8FF"; apply(); });
     document.getElementById("closeColourModal")?.addEventListener("click", function () { closeAppearanceModal({ restore: true }); });
     modal.addEventListener("click", function (event) { if (event.target === modal) closeAppearanceModal({ restore: true }); });
     document.addEventListener("keydown", function (event) { if (event.key === "Escape" && !modal.classList.contains("hidden")) closeAppearanceModal({ restore: true }); });
@@ -4114,13 +4166,10 @@ function setupAppearancePersistence() {
 function applySavedAccentColors() {
     const primary = localStorage.getItem("expense_primary_color");
     const secondary = localStorage.getItem("expense_secondary_color");
-    const primaryInput = document.getElementById("modalPrimaryColor"), secondaryInput = document.getElementById("modalSecondaryColor");
     const hasCustomColors = localStorage.getItem("expense_has_custom_colors") === "true";
     const defaultPrimary = "#7C5CFC", defaultSecondary = "#5CC8FF";
-    if (hasCustomColors && primary && /^#[0-9a-f]{6}$/i.test(primary)) { document.documentElement.style.setProperty("--primary", primary); if (primaryInput) primaryInput.value = primary; }
-    else { document.documentElement.style.setProperty("--primary", defaultPrimary); if (primaryInput) primaryInput.value = defaultPrimary; }
-    if (hasCustomColors && secondary && /^#[0-9a-f]{6}$/i.test(secondary)) { document.documentElement.style.setProperty("--secondary", secondary); if (secondaryInput) secondaryInput.value = secondary; }
-    else { document.documentElement.style.setProperty("--secondary", defaultSecondary); if (secondaryInput) secondaryInput.value = defaultSecondary; }
+    document.documentElement.style.setProperty("--primary", hasCustomColors && primary && /^#[0-9a-f]{6}$/i.test(primary) ? primary : defaultPrimary);
+    document.documentElement.style.setProperty("--secondary", hasCustomColors && secondary && /^#[0-9a-f]{6}$/i.test(secondary) ? secondary : defaultSecondary);
 }
 
 function migrateLegacyThemeColors() {
