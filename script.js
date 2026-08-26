@@ -43,6 +43,7 @@ const state = {
     currency: "MYR",
     currentUser: null,
     nickname: "",
+    nicknameSaving: false,
     unsubscribeTransactions: null,
     guestMode: false,
     authResolved: false,
@@ -3270,16 +3271,16 @@ function updateNicknameInput() {
 async function loadNickname(user) {
     if (!user) return;
     const cacheKey = "expense_nickname_" + user.uid;
+    const cached = normalizeNickname(localStorage.getItem(cacheKey));
     try {
         const snapshot = await getDoc(doc(db, "users", user.uid, "profile", "settings"));
         const nickname = snapshot.exists() ? normalizeNickname(snapshot.data().nickname) : "";
-        state.nickname = isValidNickname(nickname) ? nickname : "";
-        localStorage.setItem(cacheKey, state.nickname);
+        state.nickname = isValidNickname(nickname) ? nickname : (isValidNickname(cached) ? cached : "");
+        if (isValidNickname(nickname)) localStorage.setItem(cacheKey, nickname);
         updateUserProfile(user);
         updateNicknameInput();
     } catch (error) {
         console.error("Failed to load nickname:", error);
-        const cached = normalizeNickname(localStorage.getItem(cacheKey));
         state.nickname = isValidNickname(cached) ? cached : "";
         updateUserProfile(user); updateNicknameInput();
     }
@@ -3293,9 +3294,11 @@ function setupNicknameSetting() {
     form.addEventListener("submit", async function (event) {
         event.preventDefault();
         if (!state.currentUser || state.guestMode) return showToast("Sign in to save a nickname", true);
+        if (state.nicknameSaving) return;
         const nickname = normalizeNickname(input.value);
         if (!isValidNickname(nickname)) return showToast("Use a nickname of 1–40 characters", true);
         const button = document.getElementById("saveNicknameButton");
+        state.nicknameSaving = true;
         if (button) button.disabled = true;
         try {
             await setDoc(doc(db, "users", state.currentUser.uid, "profile", "settings"), { nickname: nickname, updatedAt: serverTimestamp() }, { merge: true });
@@ -3306,8 +3309,13 @@ function setupNicknameSetting() {
             showToast("Nickname saved");
         } catch (error) {
             console.error("Failed to save nickname:", error);
-            showToast("Failed to save nickname", true);
+            state.nickname = nickname;
+            localStorage.setItem("expense_nickname_" + state.currentUser.uid, nickname);
+            input.value = nickname;
+            updateUserProfile(state.currentUser);
+            showToast("Nickname saved locally.");
         } finally {
+            state.nicknameSaving = false;
             if (button) button.disabled = false;
         }
     });
@@ -4490,13 +4498,13 @@ function renderConverterRate(rateData, cached) {
     if (!rateData || !Number.isFinite(Number(rateData.rate))) {
         result.textContent = "—";
         rate.textContent = t("Reference rate: unavailable");
-        updated.textContent = "Last updated: —";
+        updated.textContent = t("Updated —");
         return;
     }
     const converted = Number.isFinite(amount) ? amount * Number(rateData.rate) : 0;
     result.textContent = new Intl.NumberFormat(undefined, { style: "currency", currency: to, maximumFractionDigits: 2 }).format(converted);
-    rate.textContent = "Reference rate: 1 " + from + " = " + Number(rateData.rate).toLocaleString(undefined, { maximumFractionDigits: 6 }) + " " + to;
-    updated.textContent = "Last updated: " + (rateData.date || "—") + (cached ? " · cached" : "");
+    rate.textContent = "1 " + from + " = " + Number(rateData.rate).toLocaleString(undefined, { maximumFractionDigits: 6 }) + " " + to;
+    updated.textContent = t("Updated") + " " + (rateData.date || "—") + (cached ? " · " + t("cached") : "");
 }
 
 
@@ -4768,6 +4776,10 @@ Object.assign(translations.zh, {
 
 Object.assign(translations.zh, {
     "Your nickname":"你的暱稱", "Sign in to save a nickname":"登入後才能儲存暱稱", "Use a nickname of 1–40 characters":"暱稱長度須為 1 至 40 個字元", "Failed to save nickname":"儲存暱稱失敗", "Personalise your dashboard palette":"自訂儀表板色彩", "Accent colours":"主題色彩", "APPEARANCE":"外觀", "Current primary and secondary colours":"目前的主要與次要色彩", "Customise Colours":"自訂色彩", "Primary Colour":"主要色彩", "Secondary Colour":"次要色彩", "Chosen":"已選擇", "Reset Default":"恢復預設", "Save Colours":"儲存色彩", "Primary colour wheel. Use arrow keys to adjust hue and saturation.":"主要色彩圓盤。使用方向鍵調整色相與飽和度。", "Secondary colour wheel. Use arrow keys to adjust hue and saturation.":"次要色彩圓盤。使用方向鍵調整色相與飽和度。", "Primary colour tone":"主要色彩明暗", "Secondary colour tone":"次要色彩明暗", "Sign in to manage category budgets":"登入以管理分類預算", "Budgets sync securely across your devices.":"預算會安全同步到你的裝置。", "Edit Category Budget":"編輯分類預算", "Delete Category Budget":"刪除分類預算", "Please enter a valid budget amount.":"請輸入有效的預算金額。", "Please select a category.":"請選擇分類。", "Failed to save category budget":"儲存分類預算失敗", "Failed to delete category budget":"刪除分類預算失敗", "Category":"分類", "Amount":"金額", "Save":"儲存", "Cancel":"取消", "Delete":"刪除", "Edit":"編輯", "PLAN":"規劃", "CATEGORY BUDGET":"分類預算", "CATEGORY BUDGETS":"分類預算", "+ Add Category Budget":"＋ 新增分類預算", "Add":"新增", "Set Budget":"設定預算", "Set Total Budget":"設定總預算", "Edit Total Budget":"編輯總預算", "Sign in to manage budgets":"登入以管理預算"
+});
+
+Object.assign(translations.zh, {
+    "Updated":"更新於", "Updated —":"更新於 —", "Reference rate only":"僅供參考匯率", "Nickname saved locally.":"暱稱已儲存在本機。"
 });
 
 function getLanguage() { return localStorage.getItem("expense_language") === "zh" ? "zh" : "en"; }

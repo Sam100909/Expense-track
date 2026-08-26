@@ -17,7 +17,7 @@
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     >
 
-    <link rel="stylesheet" href="style.css?v=58">
+    <link rel="stylesheet" href="style.css?v=59">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" href="./app-icon-512.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="./app-icon-512.png" sizes="512x512">
@@ -323,9 +323,9 @@
             </section>
 
             <section id="converterPage" class="page">
-                <div class="page-header"><div><span class="eyebrow">REFERENCE RATES</span><h1>Currency Converter</h1><p>Estimate your conversion with the latest available reference rate.</p></div></div>
+                <div class="page-header converter-page-header"><div><span class="eyebrow">REFERENCE RATES</span><h1>Currency Converter</h1><p>Estimate your conversion with the latest available reference rate.</p></div></div>
                 <section class="converter-card" aria-labelledby="converterTitle">
-                    <div class="converter-heading"><div><span class="eyebrow">CONVERT</span><h3 id="converterTitle">Exchange estimate</h3></div><span id="converterStatus" class="converter-status" role="status">Ready</span></div>
+                    <div class="converter-heading"><h3 id="converterTitle">Exchange estimate</h3><span id="converterStatus" class="converter-status" role="status">Ready</span></div>
                     <label class="converter-amount-field"><span>Amount</span><input id="converterAmount" class="form-input" type="number" min="0" step="any" inputmode="decimal" value="1" aria-label="Amount to convert"></label>
                     <input id="converterFrom" type="hidden" value="MYR">
                     <input id="converterTo" type="hidden" value="USD">
@@ -334,21 +334,20 @@
                         <button id="converterFromCard" class="currency-selector-card" type="button" data-currency-target="from" aria-label="Choose source currency">
                             <span class="currency-selector-label">From</span>
                             <span class="currency-selector-main"><span id="converterFromFlag" class="currency-flag" aria-hidden="true">🇲🇾</span><span><strong id="converterFromCode">MYR</strong><small id="converterFromName">Malaysian Ringgit</small></span></span>
-                            <span id="converterFromSymbol" class="currency-symbol">RM</span>
+                            <span class="currency-selector-trailing"><span id="converterFromSymbol" class="currency-symbol">RM</span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>
                         </button>
 
-                        <button id="swapCurrenciesButton" class="converter-swap" type="button" aria-label="Swap currencies" title="Swap currencies"><i class="fa-solid fa-arrow-right-arrow-left"></i></button>
+                        <button id="swapCurrenciesButton" class="converter-swap" type="button" aria-label="Swap currencies" title="Swap currencies"><i class="fa-solid fa-arrow-down-arrow-up"></i></button>
 
                         <button id="converterToCard" class="currency-selector-card" type="button" data-currency-target="to" aria-label="Choose target currency">
                             <span class="currency-selector-label">To</span>
                             <span class="currency-selector-main"><span id="converterToFlag" class="currency-flag" aria-hidden="true">🇺🇸</span><span><strong id="converterToCode">USD</strong><small id="converterToName">US Dollar</small></span></span>
-                            <span id="converterToSymbol" class="currency-symbol">$</span>
+                            <span class="currency-selector-trailing"><span id="converterToSymbol" class="currency-symbol">$</span><i class="fa-solid fa-chevron-right" aria-hidden="true"></i></span>
                         </button>
                     </div>
 
-                    <div class="converter-result"><span>Converted amount</span><strong id="converterResult">—</strong></div>
-                    <div class="converter-meta"><span id="converterRate">Reference rate: —</span><span id="converterUpdated">Last updated: —</span></div>
-                    <p class="converter-disclaimer">Reference rates only. Your bank, card provider, or transfer service may use a different rate.</p>
+                    <div class="converter-result"><span>Converted amount</span><strong id="converterResult">—</strong><small id="converterRate">1 MYR = — USD</small></div>
+                    <div class="converter-meta"><span id="converterUpdated">Updated —</span><span>Reference rate only</span></div>
 
                     <div id="currencyPicker" class="currency-picker hidden" role="dialog" aria-modal="true" aria-labelledby="currencyPickerTitle">
                         <div class="currency-picker-panel">
@@ -483,7 +482,7 @@
                     </div>
                 </div>
 
-                <p class="build-version" aria-label="Build version">Build v58</p>
+                <p class="build-version" aria-label="Build version">Build v59</p>
 
             </section>
 
@@ -734,11 +733,11 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-<script type="module" src="./script.js?v=58"></script>
+<script type="module" src="./script.js?v=59"></script>
 
 <script>
     (function () {
-        const APP_BUILD = "v58";
+        const APP_BUILD = "v59";
         const RELOAD_KEY = "expense_sw_controller_build";
         let registration = null;
         const controllerAtBoot = navigator.serviceWorker && navigator.serviceWorker.controller;
