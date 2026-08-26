@@ -977,16 +977,28 @@ function setupNavigation() {
 }
 
 function navigateToPage(pageName) {
-    const transactionModal = document.getElementById("transactionModal");
-    const transactionModalIsOpen = state.activeModal === "transaction" || Boolean(transactionModal && !transactionModal.classList.contains("hidden"));
-    if (!transactionModalIsOpen) {
+    if (!dismissActiveModalForNavigation()) {
         showPage(pageName);
         return;
     }
 
-    hideTransactionModal({ discard: true });
     history.replaceState(createHistoryState(pageName), "", window.location.href);
     showPage(pageName, "none");
+}
+
+function dismissActiveModalForNavigation() {
+    if (!document.getElementById("colourModal")?.classList.contains("hidden")) document.getElementById("cancelColoursButton")?.click();
+    const transactionOpen = state.activeModal === "transaction" || !document.getElementById("transactionModal")?.classList.contains("hidden");
+    const budgetOpen = state.activeModal === "budget" || !document.getElementById("budgetModal")?.classList.contains("hidden");
+    if (transactionOpen) {
+        hideTransactionModal({ discard: true });
+        return true;
+    }
+    if (budgetOpen) {
+        hideBudgetModal({ discard: true });
+        return true;
+    }
+    return false;
 }
 
 
@@ -1627,7 +1639,25 @@ function restoreModalFromHistory(entry) {
 
     hideTransactionModal();
     hideTransactionView();
+    hideBudgetModal();
 
+}
+
+function closeBudgetModal() {
+    if (state.activeModal === "budget" && history.state?.expenseTracker && history.state.modal === "budget") {
+        history.back();
+        return;
+    }
+    hideBudgetModal();
+}
+
+function hideBudgetModal(options = {}) {
+    const modal = document.getElementById("budgetModal");
+    document.activeElement?.blur();
+    if (options.discard !== false) document.getElementById("budgetForm")?.reset();
+    modal?.classList.add("hidden");
+    if (state.activeModal === "budget") state.activeModal = null;
+    document.body.classList.remove("modal-open");
 }
 
 
@@ -3193,14 +3223,19 @@ function updateNicknameInput() {
 
 async function loadNickname(user) {
     if (!user) return;
+    const cacheKey = "expense_nickname_" + user.uid;
     try {
         const snapshot = await getDoc(doc(db, "users", user.uid, "profile", "settings"));
         const nickname = snapshot.exists() ? normalizeNickname(snapshot.data().nickname) : "";
         state.nickname = isValidNickname(nickname) ? nickname : "";
+        localStorage.setItem(cacheKey, state.nickname);
         updateUserProfile(user);
         updateNicknameInput();
     } catch (error) {
         console.error("Failed to load nickname:", error);
+        const cached = normalizeNickname(localStorage.getItem(cacheKey));
+        state.nickname = isValidNickname(cached) ? cached : "";
+        updateUserProfile(user); updateNicknameInput();
     }
 }
 
@@ -3219,6 +3254,7 @@ function setupNicknameSetting() {
         try {
             await setDoc(doc(db, "users", state.currentUser.uid, "profile", "settings"), { nickname: nickname, updatedAt: serverTimestamp() }, { merge: true });
             state.nickname = nickname;
+            localStorage.setItem("expense_nickname_" + state.currentUser.uid, nickname);
             input.value = nickname;
             updateUserProfile(state.currentUser);
             showToast("Nickname saved");
@@ -4010,20 +4046,23 @@ function setupGuestImport() {
 }
 
 function setupAppearancePersistence() {
-    document.getElementById("saveAppearanceButton")?.addEventListener("click", function () {
-        const selected = document.querySelector("[data-theme].active")?.dataset.theme || "light";
-        const primary = document.getElementById("primaryColor")?.value;
-        const secondary = document.getElementById("secondaryColor")?.value;
-        localStorage.setItem("expense_appearance", selected);
-        if (primary && secondary) { localStorage.setItem("expense_primary_color", primary); localStorage.setItem("expense_secondary_color", secondary); localStorage.setItem("expense_has_custom_colors", "true"); }
-        applyTheme(selected); applySavedAccentColors(); renderSpendingBreakdown(); showToast("Appearance saved");
-    });
+    const modal = document.getElementById("colourModal"), primary = document.getElementById("modalPrimaryColor"), secondary = document.getElementById("modalSecondaryColor");
+    const preview = document.getElementById("appearancePreview"); let original = null;
+    const refresh = function () { const styles = getComputedStyle(document.documentElement); if (preview) { preview.children[0].style.background = styles.getPropertyValue("--primary").trim(); preview.children[1].style.background = styles.getPropertyValue("--secondary").trim(); } renderSpendingBreakdown(); };
+    const apply = function () { document.documentElement.style.setProperty("--primary", primary.value); document.documentElement.style.setProperty("--secondary", secondary.value); refresh(); };
+    const close = function (restore) { if (restore && original) { document.documentElement.style.setProperty("--primary", original.primary); document.documentElement.style.setProperty("--secondary", original.secondary); refresh(); } modal?.classList.add("hidden"); document.body.classList.remove("modal-open"); document.activeElement?.blur(); };
+    document.getElementById("openColourModal")?.addEventListener("click", function () { const styles = getComputedStyle(document.documentElement); original = { primary: styles.getPropertyValue("--primary").trim(), secondary: styles.getPropertyValue("--secondary").trim() }; primary.value = original.primary; secondary.value = original.secondary; modal.classList.remove("hidden"); document.body.classList.add("modal-open"); primary.focus(); });
+    [primary, secondary].forEach(function (input) { input?.addEventListener("input", apply); });
+    document.getElementById("saveColoursButton")?.addEventListener("click", function () { localStorage.setItem("expense_primary_color", primary.value); localStorage.setItem("expense_secondary_color", secondary.value); localStorage.setItem("expense_has_custom_colors", "true"); close(false); showToast("Colours saved"); });
+    document.getElementById("resetColoursButton")?.addEventListener("click", function () { primary.value = "#7C5CFC"; secondary.value = "#5CC8FF"; apply(); });
+    document.getElementById("cancelColoursButton")?.addEventListener("click", function () { close(true); }); document.getElementById("closeColourModal")?.addEventListener("click", function () { close(true); });
+    modal?.addEventListener("click", function (event) { if (event.target === modal) close(true); }); document.addEventListener("keydown", function (event) { if (event.key === "Escape" && !modal?.classList.contains("hidden")) close(true); }); refresh();
 }
 
 function applySavedAccentColors() {
     const primary = localStorage.getItem("expense_primary_color");
     const secondary = localStorage.getItem("expense_secondary_color");
-    const primaryInput = document.getElementById("primaryColor"), secondaryInput = document.getElementById("secondaryColor");
+    const primaryInput = document.getElementById("modalPrimaryColor"), secondaryInput = document.getElementById("modalSecondaryColor");
     const hasCustomColors = localStorage.getItem("expense_has_custom_colors") === "true";
     const defaultPrimary = "#7C5CFC", defaultSecondary = "#5CC8FF";
     if (hasCustomColors && primary && /^#[0-9a-f]{6}$/i.test(primary)) { document.documentElement.style.setProperty("--primary", primary); if (primaryInput) primaryInput.value = primary; }
@@ -4412,8 +4451,10 @@ function setupBudget() {
     if (!modal) return;
     modal.innerHTML = '<div class="modal-card budget-modal-card"><div class="modal-header"><div><span class="eyebrow">CATEGORY BUDGET</span><h2 id="budgetModalTitle">Add Category Budget</h2><p id="budgetMonthName"></p></div><button id="closeBudgetModal" class="icon-button" type="button" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><form id="budgetForm"><div class="form-group"><label for="budgetAmountInput">Amount</label><div class="amount-input"><span id="budgetCurrencyPrefix">RM</span><input id="budgetAmountInput" type="number" min="0.01" step="0.01" required></div></div><div class="form-group"><label for="budgetCategorySelect">Category</label><select id="budgetCategorySelect" class="form-input"><option value="">Select category</option></select></div><div class="modal-actions"><button id="cancelBudgetButton" class="secondary-button" type="button">Cancel</button><button class="primary-button" type="submit">Save</button></div></form></div>';
     let editingCategory = null;
-    const close = function () { modal.classList.add("hidden"); };
+    const close = function () { closeBudgetModal(); };
     const open = function (category = null) {
+        if (state.activeModal === "budget" && !modal.classList.contains("hidden")) return;
+        history.pushState(createHistoryState(state.currentPage, "budget"), "", window.location.href);
         editingCategory = category;
         const select = document.getElementById("budgetCategorySelect");
         document.getElementById("budgetModalTitle").textContent = category ? "Edit Category Budget" : "Add Category Budget";
@@ -4423,11 +4464,16 @@ function setupBudget() {
         select.value = category || "";
         select.disabled = Boolean(category);
         document.getElementById("budgetAmountInput").value = category ? getCurrentCategoryBudgets()[category] || "" : "";
-        modal.classList.remove("hidden"); document.getElementById("budgetAmountInput").focus();
+        modal.classList.remove("hidden");
+        state.activeModal = "budget";
+        document.body.classList.add("modal-open");
+        document.getElementById("budgetAmountInput").focus();
     };
     document.getElementById("addCategoryBudgetButton")?.addEventListener("click", function () { if (!state.currentUser || state.guestMode) return showToast("Sign in to manage budgets", true); open(); });
     document.getElementById("closeBudgetModal").addEventListener("click", close);
     document.getElementById("cancelBudgetButton").addEventListener("click", close);
+    modal.addEventListener("click", function (event) { if (event.target === modal) close(); });
+    document.addEventListener("keydown", function (event) { if (event.key === "Escape" && state.activeModal === "budget") close(); });
     document.getElementById("budgetForm").addEventListener("submit", async function (event) {
         event.preventDefault();
         const amount = Number(document.getElementById("budgetAmountInput").value);

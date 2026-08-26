@@ -17,7 +17,7 @@
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     >
 
-    <link rel="stylesheet" href="style.css?v=42">
+    <link rel="stylesheet" href="style.css?v=43">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" href="./app-icon-512.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="./app-icon-512.png" sizes="512x512">
@@ -476,20 +476,14 @@
 
                 <div class="settings-section">
                     <h3>Appearance</h3>
-                    <div class="settings-card vertical-card">
-                        <div class="setting-row">
-                            <div><strong>Accent colors</strong><span>Personalize the dashboard gradient</span></div>
-                            <div>
-                                <input id="primaryColor" class="color-picker" type="color" value="#36383D" aria-label="Primary accent color">
-                                <input id="secondaryColor" class="color-picker" type="color" value="#72757C" aria-label="Secondary accent color">
-                            </div>
-                        </div>
-                        <button id="generateThemeButton" class="secondary-button" type="button"><i class="fa-solid fa-wand-magic-sparkles"></i> Generate colors</button>
-                        <button id="saveAppearanceButton" class="primary-button" type="button">Save</button>
+                    <div class="settings-card appearance-card">
+                        <div><strong>Accent colours</strong><span>Personalise your dashboard palette</span></div>
+                        <div id="appearancePreview" class="appearance-preview" aria-label="Current primary and secondary colours"><i></i><i></i></div>
+                        <button id="openColourModal" class="secondary-button" type="button">Customise Colours</button>
                     </div>
                 </div>
 
-                <p class="build-version" aria-label="Build version">Build v38</p>
+                <p class="build-version" aria-label="Build version">Build v44</p>
 
             </section>
 
@@ -733,16 +727,18 @@
         <span id="toastMessage"></span>
     </div>
 
+    <div id="colourModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="colourModalTitle"><div class="modal-card colour-modal-card"><div class="modal-header"><div><span class="eyebrow">APPEARANCE</span><h2 id="colourModalTitle">Customise Colours</h2></div><button id="closeColourModal" class="icon-button" type="button" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><div class="colour-controls"><label>Primary <input id="modalPrimaryColor" type="color" value="#7C5CFC"></label><input id="modalPrimaryLight" type="range" min="20" max="78" value="55"><label>Secondary <input id="modalSecondaryColor" type="color" value="#5CC8FF"></label><input id="modalSecondaryLight" type="range" min="20" max="78" value="68"></div><div class="modal-actions"><button id="resetColoursButton" class="secondary-button" type="button">Reset Default</button><button id="cancelColoursButton" class="secondary-button" type="button">Cancel</button><button id="saveColoursButton" class="primary-button" type="button">Save Colours</button></div></div></div>
+
 
 <!-- JAVASCRIPT -->
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-<script type="module" src="./script.js?v=42"></script>
+<script type="module" src="./script.js?v=44"></script>
 
 <script>
     (function () {
-        const APP_BUILD = "v42";
+        const APP_BUILD = "v44";
         const RELOAD_KEY = "expense_sw_controller_build";
         let registration = null;
         const controllerAtBoot = navigator.serviceWorker && navigator.serviceWorker.controller;
