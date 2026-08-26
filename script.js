@@ -3739,7 +3739,7 @@ function getDateKey(date) {
 function monthLabel(monthKey = state.selectedMonth) {
     const parts = String(monthKey).split("-");
     return new Date(Number(parts[0]), Number(parts[1]) - 1, 1)
-        .toLocaleDateString("en-US", { month: "long", year: "numeric" });
+        .toLocaleDateString(getLocale(), { month: "long", year: "numeric" });
 }
 
 function isInSelectedMonth(transaction) {
@@ -4592,7 +4592,7 @@ function setupCurrencyConverter() {
     convertCurrency();
 }
 
-document.addEventListener("DOMContentLoaded", function () { document.getElementById("dateFilter").value = "selected"; setupSyncStatus(); setupMonthSelector(); updateTodayDateLabel(); scheduleSelectedDateMidnightCheck(); setupBudget(); setupGuestImport(); setupAppearancePersistence(); setupCurrencyConverter(); updateDashboardControlsVisibility(); updateAll(); });
+document.addEventListener("DOMContentLoaded", function () { document.getElementById("dateFilter").value = "selected"; setupSyncStatus(); setupMonthSelector(); updateTodayDateLabel(); scheduleSelectedDateMidnightCheck(); setupBudget(); applyBudgetPageLanguage(); setupGuestImport(); setupAppearancePersistence(); setupCurrencyConverter(); updateDashboardControlsVisibility(); updateAll(); });
 onAuthStateChanged(auth, function (user) {
     if (!user) { if (state.unsubscribeBudget) { state.unsubscribeBudget(); state.unsubscribeBudget = null; } state.currentBudget = null; updateBudgetUI(); return; }
     loadBudget(); const guestItems = loadGuestTransactions();
@@ -4609,16 +4609,14 @@ function setupBudget() {
     const modal = document.getElementById("budgetModal");
     if (!modal) return;
     modal.innerHTML = '<div class="modal-card budget-modal-card"><div class="modal-header"><div><span class="eyebrow">CATEGORY BUDGET</span><h2 id="budgetModalTitle">Add Category Budget</h2><p id="budgetMonthName"></p></div><button id="closeBudgetModal" class="icon-button" type="button" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><form id="budgetForm"><div class="form-group"><label for="budgetAmountInput">Amount</label><div class="amount-input"><span id="budgetCurrencyPrefix">RM</span><input id="budgetAmountInput" type="number" min="0.01" step="0.01" required></div></div><div class="form-group"><label for="budgetCategorySelect">Category</label><select id="budgetCategorySelect" class="form-input"><option value="">Select category</option></select></div><div class="modal-actions"><button id="cancelBudgetButton" class="secondary-button" type="button">Cancel</button><button class="primary-button" type="submit">Save</button></div></form></div>';
-    refreshBudgetLanguage();
     let editingCategory = null;
     const close = function () { closeBudgetModal(); };
     const open = function (category = null) {
         if (state.activeModal === "budget" && !modal.classList.contains("hidden")) return;
         history.pushState(createHistoryState(state.currentPage, "budget"), "", window.location.href);
         editingCategory = category;
-        modal.dataset.budgetMode = category ? "edit" : "add";
         const select = document.getElementById("budgetCategorySelect");
-        document.getElementById("budgetModalTitle").textContent = t(category ? "Edit Category Budget" : "Add Category Budget");
+        document.getElementById("budgetModalTitle").textContent = category ? "Edit Category Budget" : "Add Category Budget";
         document.getElementById("budgetMonthName").textContent = monthLabel();
         document.getElementById("budgetCurrencyPrefix").textContent = (formatCurrency(0).match(/^\S+/) || [state.currency])[0];
         select.innerHTML = '<option value="">' + t("Select category") + '</option>' + getBudgetCategories().map(function (name) { return '<option value="' + escapeHTML(name) + '">' + escapeHTML(getCategoryDisplayName(name)) + '</option>'; }).join("");
@@ -4660,73 +4658,49 @@ function setupBudget() {
     });
 }
 
-function updateBudgetUI() {
-    const card = document.querySelector("#budgetPageContent .budget-card"), pageMonth = document.getElementById("budgetPageMonth");
-    if (pageMonth) pageMonth.textContent = monthLabel();
-    if (!card) return;
-    const empty = card.querySelector("#budgetEmpty"), section = card.querySelector("#categoryBudgetSection"), list = card.querySelector("#categoryBudgetList");
-    if (state.guestMode || !state.currentUser) {
-        empty.classList.remove("hidden");
-        empty.innerHTML = '<strong>' + t("Sign in to manage category budgets") + '</strong><span>' + t("Budgets sync securely across your devices.") + '</span>';
-        const guestHeading = empty.querySelector("strong"), guestDescription = empty.querySelector("span");
-        if (guestHeading?.firstChild) guestHeading.firstChild.__sourceText = "Sign in to manage category budgets";
-        if (guestDescription?.firstChild) guestDescription.firstChild.__sourceText = "Budgets sync securely across your devices.";
-        section.classList.add("hidden");
-        return;
-    }
-    const spending = getCategorySpending();
-    const entries = Object.entries(getCurrentCategoryBudgets()).map(function ([category, budget]) { const spent = Number(spending[category] || 0); return { category, budget, spent, percent: Math.round(spent / budget * 100), over: spent > budget }; }).sort(function (a, b) { return Number(b.over) - Number(a.over) || b.percent - a.percent || a.category.localeCompare(b.category); });
-    empty.classList.toggle("hidden", entries.length > 0); section.classList.toggle("hidden", entries.length === 0);
-    refreshBudgetLanguage();
-    if (!entries.length) { list.innerHTML = ""; return; }
-    section.querySelector("#categoryBudgetHint").textContent = monthLabel();
-    list.innerHTML = entries.map(function (item) { const status = item.over ? formatCurrency(item.spent - item.budget) + " over budget" : formatCurrency(item.budget - item.spent) + " remaining"; return '<div class="category-budget-row' + (item.over ? ' over' : '') + '"><div class="category-budget-row-top"><strong>' + escapeHTML(item.category) + '</strong><span>' + formatCurrency(item.spent) + ' / ' + formatCurrency(item.budget) + '</span></div><div class="category-progress"><span style="width:' + Math.min(item.percent, 100) + '%"></span></div><div class="category-budget-status">' + item.percent + '% used · ' + status + '</div><div class="budget-row-actions"><button type="button" class="text-button" data-edit-budget="' + escapeHTML(item.category) + '">Edit</button><button type="button" class="text-button budget-delete" data-delete-budget="' + escapeHTML(item.category) + '">Delete</button></div></div>'; }).join("");
-    list.querySelectorAll(".category-budget-row-top strong").forEach(function (label, index) { label.textContent = getCategoryDisplayName(entries[index].category); });
-    list.querySelectorAll(".category-budget-status").forEach(function (status) { const raw = status.dataset.i18nSource || status.textContent; status.dataset.i18nSource = raw; status.textContent = getLanguage() === "zh" ? raw.replace("used", t("used")).replace("over budget", t("over budget")).replace("remaining", t("remaining")) : raw; });
-    list.querySelectorAll("[data-edit-budget],[data-delete-budget]").forEach(function (button) { const editing = Boolean(button.dataset.editBudget); button.classList.add("budget-icon-action"); button.setAttribute("aria-label", t(editing ? "Edit Category Budget" : "Delete Category Budget")); button.setAttribute("title", t(editing ? "Edit" : "Delete")); button.innerHTML = '<i class="fa-solid fa-' + (editing ? "pen" : "trash") + '"></i>'; });
-}
-
-function refreshBudgetLanguage() {
+function applyBudgetPageLanguage() {
     const card = document.querySelector("#budgetPageContent .budget-card");
+    const setText = function (element, key) { if (element) element.textContent = t(key); };
     if (card) {
-        const setText = function (element, key) {
-            if (!element) return;
-            element.textContent = t(key);
-            if (element.firstChild) element.firstChild.__sourceText = key;
-        };
-        const labels = [
+        [
             [".budget-heading .eyebrow", "PLAN"],
             ["#budgetTitle", "Category Budgets"],
             [".category-budget-title .eyebrow", "CATEGORY BUDGETS"],
             ["#addCategoryBudgetButton", "+ Add Category Budget"]
-        ];
-        labels.forEach(function ([selector, key]) { setText(card.querySelector(selector), key); });
-        if (!state.guestMode && state.currentUser) {
+        ].forEach(function ([selector, key]) { setText(card.querySelector(selector), key); });
+        if (state.currentUser && !state.guestMode) {
             setText(card.querySelector("#budgetEmpty strong"), "No category budgets set");
             setText(card.querySelector("#budgetEmpty span"), "Add a category budget to track your spending.");
         }
     }
     const modal = document.getElementById("budgetModal");
     if (!modal) return;
-    const setText = function (element, key) {
-        if (!element) return;
-        element.textContent = t(key);
-        if (element.firstChild) element.firstChild.__sourceText = key;
-    };
-    const labels = [
+    [
         [".modal-header .eyebrow", "CATEGORY BUDGET"],
         ['label[for="budgetAmountInput"]', "Amount"],
         ['label[for="budgetCategorySelect"]', "Category"],
         ["#cancelBudgetButton", "Cancel"],
         ['button[type="submit"]', "Save"]
-    ];
-    labels.forEach(function ([selector, key]) { setText(modal.querySelector(selector), key); });
+    ].forEach(function ([selector, key]) { setText(modal.querySelector(selector), key); });
     const closeButton = modal.querySelector("#closeBudgetModal");
-    if (closeButton) { closeButton.dataset["i18naria-label"] = "Close"; closeButton.setAttribute("aria-label", t("Close")); }
-    const title = modal.querySelector("#budgetModalTitle");
-    setText(title, modal.dataset.budgetMode === "edit" ? "Edit Category Budget" : "Add Category Budget");
-    const categorySelect = modal.querySelector("#budgetCategorySelect");
-    if (categorySelect) Array.from(categorySelect.options).forEach(function (option) { const key = option.value || "Select category"; option.textContent = option.value ? getCategoryDisplayName(option.value) : t(key); if (option.firstChild) option.firstChild.__sourceText = key; });
+    if (closeButton) closeButton.setAttribute("aria-label", t("Close"));
+}
+
+function updateBudgetUI() {
+    const card = document.querySelector("#budgetPageContent .budget-card"), pageMonth = document.getElementById("budgetPageMonth");
+    if (pageMonth) pageMonth.textContent = monthLabel();
+    if (!card) return;
+    const empty = card.querySelector("#budgetEmpty"), section = card.querySelector("#categoryBudgetSection"), list = card.querySelector("#categoryBudgetList");
+    if (state.guestMode || !state.currentUser) { empty.classList.remove("hidden"); empty.innerHTML = '<strong>Sign in to manage category budgets</strong><span>Budgets sync securely across your devices.</span>'; section.classList.add("hidden"); return; }
+    const spending = getCategorySpending();
+    const entries = Object.entries(getCurrentCategoryBudgets()).map(function ([category, budget]) { const spent = Number(spending[category] || 0); return { category, budget, spent, percent: Math.round(spent / budget * 100), over: spent > budget }; }).sort(function (a, b) { return Number(b.over) - Number(a.over) || b.percent - a.percent || a.category.localeCompare(b.category); });
+    empty.classList.toggle("hidden", entries.length > 0); section.classList.toggle("hidden", entries.length === 0);
+    if (!entries.length) { list.innerHTML = ""; return; }
+    section.querySelector("#categoryBudgetHint").textContent = monthLabel();
+    list.innerHTML = entries.map(function (item) { const status = item.over ? formatCurrency(item.spent - item.budget) + " over budget" : formatCurrency(item.budget - item.spent) + " remaining"; return '<div class="category-budget-row' + (item.over ? ' over' : '') + '"><div class="category-budget-row-top"><strong>' + escapeHTML(item.category) + '</strong><span>' + formatCurrency(item.spent) + ' / ' + formatCurrency(item.budget) + '</span></div><div class="category-progress"><span style="width:' + Math.min(item.percent, 100) + '%"></span></div><div class="category-budget-status">' + item.percent + '% used · ' + status + '</div><div class="budget-row-actions"><button type="button" class="text-button" data-edit-budget="' + escapeHTML(item.category) + '">Edit</button><button type="button" class="text-button budget-delete" data-delete-budget="' + escapeHTML(item.category) + '">Delete</button></div></div>'; }).join("");
+    list.querySelectorAll(".category-budget-row-top strong").forEach(function (label, index) { label.textContent = getCategoryDisplayName(entries[index].category); });
+    list.querySelectorAll(".category-budget-status").forEach(function (status) { const raw = status.dataset.i18nSource || status.textContent; status.dataset.i18nSource = raw; status.textContent = getLanguage() === "zh" ? raw.replace("used", t("used")).replace("over budget", t("over budget")).replace("remaining", t("remaining")) : raw; });
+    list.querySelectorAll("[data-edit-budget],[data-delete-budget]").forEach(function (button) { const editing = Boolean(button.dataset.editBudget); button.classList.add("budget-icon-action"); button.setAttribute("aria-label", t(editing ? "Edit Category Budget" : "Delete Category Budget")); button.setAttribute("title", t(editing ? "Edit" : "Delete")); button.innerHTML = '<i class="fa-solid fa-' + (editing ? "pen" : "trash") + '"></i>'; });
 }
 
 /* Legacy budget implementation retained for reference only. */
@@ -4796,10 +4770,6 @@ Object.assign(translations.zh, {
     "Your nickname":"你的暱稱", "Sign in to save a nickname":"登入後才能儲存暱稱", "Use a nickname of 1–40 characters":"暱稱長度須為 1 至 40 個字元", "Failed to save nickname":"儲存暱稱失敗", "Personalise your dashboard palette":"自訂儀表板色彩", "Accent colours":"主題色彩", "APPEARANCE":"外觀", "Current primary and secondary colours":"目前的主要與次要色彩", "Customise Colours":"自訂色彩", "Primary Colour":"主要色彩", "Secondary Colour":"次要色彩", "Chosen":"已選擇", "Reset Default":"恢復預設", "Save Colours":"儲存色彩", "Primary colour wheel. Use arrow keys to adjust hue and saturation.":"主要色彩圓盤。使用方向鍵調整色相與飽和度。", "Secondary colour wheel. Use arrow keys to adjust hue and saturation.":"次要色彩圓盤。使用方向鍵調整色相與飽和度。", "Primary colour tone":"主要色彩明暗", "Secondary colour tone":"次要色彩明暗", "Sign in to manage category budgets":"登入以管理分類預算", "Budgets sync securely across your devices.":"預算會安全同步到你的裝置。", "Edit Category Budget":"編輯分類預算", "Delete Category Budget":"刪除分類預算", "Please enter a valid budget amount.":"請輸入有效的預算金額。", "Please select a category.":"請選擇分類。", "Failed to save category budget":"儲存分類預算失敗", "Failed to delete category budget":"刪除分類預算失敗", "Category":"分類", "Amount":"金額", "Save":"儲存", "Cancel":"取消", "Delete":"刪除", "Edit":"編輯", "PLAN":"規劃", "CATEGORY BUDGET":"分類預算", "CATEGORY BUDGETS":"分類預算", "+ Add Category Budget":"＋ 新增分類預算", "Add":"新增", "Set Budget":"設定預算", "Set Total Budget":"設定總預算", "Edit Total Budget":"編輯總預算", "Sign in to manage budgets":"登入以管理預算"
 });
 
-Object.assign(translations.zh, {
-    "PLAN":"计划", "CATEGORY BUDGET":"分类预算", "CATEGORY BUDGETS":"分类预算", "Category Budgets":"分类预算", "No category budgets set":"尚未设置分类预算", "Add a category budget to track your spending.":"添加分类预算以追踪你的支出。", "+ Add Category Budget":"+ 添加分类预算", "Add Category Budget":"添加分类预算", "Edit Category Budget":"编辑分类预算", "Select category":"选择分类", "Category":"分类", "Amount":"金额", "Save":"保存", "Cancel":"取消", "Close":"关闭", "Sign in to manage category budgets":"登录以管理分类预算", "Budgets sync securely across your devices.":"预算会安全同步到你的设备。", "Category budget saved":"分类预算已保存", "Category budget deleted":"分类预算已删除", "Please enter a valid budget amount.":"请输入有效的预算金额。", "Please select a category.":"请选择分类。", "Failed to save category budget":"保存分类预算失败", "Failed to delete category budget":"删除分类预算失败", "Sign in to manage budgets":"登录以管理预算"
-});
-
 function getLanguage() { return localStorage.getItem("expense_language") === "zh" ? "zh" : "en"; }
 function getLocale() { return getLanguage() === "zh" ? "zh-Hans-MY" : "en-GB"; }
 function t(value) {
@@ -4816,12 +4786,13 @@ function getCategoryDisplayName(category, language = getLanguage()) {
 function applyLanguage(language) {
     localStorage.setItem("expense_language", language === "zh" ? "zh" : "en");
     const select = document.getElementById("languageSelect"); if (select) select.value = getLanguage();
-    updateAll(); refreshTransactionFilterLanguage(); refreshNicknameLanguage(); updateBudgetUI(); refreshBudgetLanguage(); updateTodayDateLabel();
+    updateAll(); refreshTransactionFilterLanguage(); refreshNicknameLanguage(); updateBudgetUI(); updateTodayDateLabel();
     const modalTitle = document.querySelector("#transactionModal:not(.hidden) h2"); if (modalTitle) modalTitle.textContent = getTransactionModalTitle();
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
     nodes.forEach(function (node) { const raw = node.__sourceText || node.nodeValue; node.__sourceText = raw; const trimmed = raw.trim(), translated = t(trimmed); node.nodeValue = raw.replace(trimmed, translated); });
     document.querySelectorAll("[placeholder],[aria-label]").forEach(function (element) { ["placeholder", "aria-label"].forEach(function (attribute) { const key = "i18n" + attribute, value = element.dataset[key] || element.getAttribute(attribute); if (value) { element.dataset[key] = value; element.setAttribute(attribute, t(value)); } }); });
+    applyBudgetPageLanguage();
 }
 
 function updateBudgetUILegacy2() {
