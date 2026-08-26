@@ -4592,7 +4592,7 @@ function setupCurrencyConverter() {
     convertCurrency();
 }
 
-document.addEventListener("DOMContentLoaded", function () { document.getElementById("dateFilter").value = "selected"; setupSyncStatus(); setupMonthSelector(); updateTodayDateLabel(); scheduleSelectedDateMidnightCheck(); setupBudget(); setupGuestImport(); setupAppearancePersistence(); setupCurrencyConverter(); updateDashboardControlsVisibility(); updateAll(); });
+document.addEventListener("DOMContentLoaded", function () { document.getElementById("dateFilter").value = "selected"; setupSyncStatus(); setupMonthSelector(); updateTodayDateLabel(); scheduleSelectedDateMidnightCheck(); setupBudget(); renderBudgetLanguage(); setupGuestImport(); setupAppearancePersistence(); setupCurrencyConverter(); updateDashboardControlsVisibility(); updateAll(); });
 onAuthStateChanged(auth, function (user) {
     if (!user) { if (state.unsubscribeBudget) { state.unsubscribeBudget(); state.unsubscribeBudget = null; } state.currentBudget = null; updateBudgetUI(); return; }
     loadBudget(); const guestItems = loadGuestTransactions();
@@ -4616,7 +4616,7 @@ function setupBudget() {
         history.pushState(createHistoryState(state.currentPage, "budget"), "", window.location.href);
         editingCategory = category;
         const select = document.getElementById("budgetCategorySelect");
-        document.getElementById("budgetModalTitle").textContent = category ? "Edit Category Budget" : "Add Category Budget";
+        document.getElementById("budgetModalTitle").textContent = t(category ? "Edit Category Budget" : "Add Category Budget");
         document.getElementById("budgetMonthName").textContent = monthLabel();
         document.getElementById("budgetCurrencyPrefix").textContent = (formatCurrency(0).match(/^\S+/) || [state.currency])[0];
         select.innerHTML = '<option value="">' + t("Select category") + '</option>' + getBudgetCategories().map(function (name) { return '<option value="' + escapeHTML(name) + '">' + escapeHTML(getCategoryDisplayName(name)) + '</option>'; }).join("");
@@ -4658,15 +4658,43 @@ function setupBudget() {
     });
 }
 
+function renderBudgetLanguage() {
+    const card = document.querySelector("#budgetPageContent .budget-card");
+    const setText = function (root, selector, key) {
+        const element = root?.querySelector(selector);
+        if (element) element.textContent = t(key);
+    };
+    if (card) {
+        setText(card, ".budget-heading .eyebrow", "PLAN");
+        setText(card, "#budgetTitle", "Category Budgets");
+        setText(card, ".category-budget-title .eyebrow", "CATEGORY BUDGETS");
+        setText(card, "#addCategoryBudgetButton", "+ Add Category Budget");
+        if (state.currentUser && !state.guestMode) {
+            setText(card, "#budgetEmpty strong", "No category budgets set");
+            setText(card, "#budgetEmpty span", "Add a category budget to track your spending.");
+        }
+    }
+    const modal = document.getElementById("budgetModal");
+    if (!modal) return;
+    setText(modal, ".modal-header .eyebrow", "CATEGORY BUDGET");
+    setText(modal, 'label[for="budgetAmountInput"]', "Amount");
+    setText(modal, 'label[for="budgetCategorySelect"]', "Category");
+    setText(modal, "#cancelBudgetButton", "Cancel");
+    setText(modal, 'button[type="submit"]', "Save");
+    const closeButton = modal.querySelector("#closeBudgetModal");
+    if (closeButton) closeButton.setAttribute("aria-label", t("Close"));
+}
+
 function updateBudgetUI() {
     const card = document.querySelector("#budgetPageContent .budget-card"), pageMonth = document.getElementById("budgetPageMonth");
     if (pageMonth) pageMonth.textContent = monthLabel();
     if (!card) return;
     const empty = card.querySelector("#budgetEmpty"), section = card.querySelector("#categoryBudgetSection"), list = card.querySelector("#categoryBudgetList");
-    if (state.guestMode || !state.currentUser) { empty.classList.remove("hidden"); empty.innerHTML = '<strong>Sign in to manage category budgets</strong><span>Budgets sync securely across your devices.</span>'; section.classList.add("hidden"); return; }
+    if (state.guestMode || !state.currentUser) { empty.classList.remove("hidden"); empty.innerHTML = '<strong>' + t("Sign in to manage category budgets") + '</strong><span>' + t("Budgets sync securely across your devices.") + '</span>'; section.classList.add("hidden"); return; }
     const spending = getCategorySpending();
     const entries = Object.entries(getCurrentCategoryBudgets()).map(function ([category, budget]) { const spent = Number(spending[category] || 0); return { category, budget, spent, percent: Math.round(spent / budget * 100), over: spent > budget }; }).sort(function (a, b) { return Number(b.over) - Number(a.over) || b.percent - a.percent || a.category.localeCompare(b.category); });
     empty.classList.toggle("hidden", entries.length > 0); section.classList.toggle("hidden", entries.length === 0);
+    renderBudgetLanguage();
     if (!entries.length) { list.innerHTML = ""; return; }
     section.querySelector("#categoryBudgetHint").textContent = monthLabel();
     list.innerHTML = entries.map(function (item) { const status = item.over ? formatCurrency(item.spent - item.budget) + " over budget" : formatCurrency(item.budget - item.spent) + " remaining"; return '<div class="category-budget-row' + (item.over ? ' over' : '') + '"><div class="category-budget-row-top"><strong>' + escapeHTML(item.category) + '</strong><span>' + formatCurrency(item.spent) + ' / ' + formatCurrency(item.budget) + '</span></div><div class="category-progress"><span style="width:' + Math.min(item.percent, 100) + '%"></span></div><div class="category-budget-status">' + item.percent + '% used · ' + status + '</div><div class="budget-row-actions"><button type="button" class="text-button" data-edit-budget="' + escapeHTML(item.category) + '">Edit</button><button type="button" class="text-button budget-delete" data-delete-budget="' + escapeHTML(item.category) + '">Delete</button></div></div>'; }).join("");
@@ -4763,6 +4791,7 @@ function applyLanguage(language) {
     const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
     nodes.forEach(function (node) { const raw = node.__sourceText || node.nodeValue; node.__sourceText = raw; const trimmed = raw.trim(), translated = t(trimmed); node.nodeValue = raw.replace(trimmed, translated); });
     document.querySelectorAll("[placeholder],[aria-label]").forEach(function (element) { ["placeholder", "aria-label"].forEach(function (attribute) { const key = "i18n" + attribute, value = element.dataset[key] || element.getAttribute(attribute); if (value) { element.dataset[key] = value; element.setAttribute(attribute, t(value)); } }); });
+    renderBudgetLanguage();
 }
 
 function updateBudgetUILegacy2() {
