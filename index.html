@@ -10,26 +10,14 @@
 
     <title>Expense Tracker</title>
 
-    <style>
-        html, body { min-height:100%; margin:0; background:#f2f2f1; color:#202124; }
-        #app { display:flex; min-height:100vh; background:#f2f2f1; }
-        #app .main-content { display:block; width:100%; min-height:100vh; padding:24px 16px 96px; }
-        #app .topbar { display:flex; min-height:52px; align-items:center; justify-content:space-between; margin-bottom:20px; }
-        #app .balance-card, #app .dashboard-spending-card { display:block; min-height:188px; margin-bottom:16px; padding:22px; border-radius:22px; background:#ffffff; }
-        #app .dashboard-spending-card { min-height:300px; }
-        #app .mobile-floating-nav { display:flex; position:fixed; right:16px; bottom:16px; left:16px; min-height:64px; background:#ffffff; border-radius:24px; }
-        body.dashboard-pending #greeting, body.dashboard-pending #balanceAmount { position:relative; color:transparent; }
-        body.dashboard-pending #greeting::after, body.dashboard-pending #balanceAmount::after { content:""; position:absolute; top:50%; left:0; width:7.5ch; height:.72em; border-radius:999px; background:rgba(101,103,109,.18); transform:translateY(-50%); }
-        body.dashboard-pending #balanceStatus, body.dashboard-pending #spendingEmpty, body.dashboard-pending #spendingContent { display:none !important; }
-        body.dashboard-pending .dashboard-spending-card::after { content:""; display:block; width:min(250px,72%); aspect-ratio:1; margin:12px auto; border-radius:50%; background:radial-gradient(circle, transparent 0 48%, rgba(101,103,109,.12) 49% 64%, transparent 65%); }
-    </style>
+    <style>html, body { background: #ffffff; }</style>
 
     <link
         rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     >
 
-    <link rel="stylesheet" href="style.css?v=40">
+    <link rel="stylesheet" href="style.css?v=41">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" href="./app-icon-512.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="./app-icon-512.png" sizes="512x512">
@@ -79,7 +67,7 @@
 </section>
 
     <!-- APP -->
-    <div id="app" class="app">
+    <div id="app" class="app hidden">
 
         <!-- SIDEBAR -->
         <aside id="sidebar" class="sidebar">
@@ -750,7 +738,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-<script type="module" src="./script.js?v=40"></script>
+<script type="module" src="./script.js?v=41"></script>
 
 <script>
     if ("serviceWorker" in navigator) {
