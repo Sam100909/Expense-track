@@ -1861,8 +1861,7 @@ function updateCategoryOptions() {
 
     firstOption.value = "";
 
-    firstOption.textContent =
-        "Select category";
+    firstOption.textContent = t("Select category");
 
 
     select.appendChild(
@@ -1883,8 +1882,7 @@ function updateCategoryOptions() {
         option.value =
             category;
 
-        option.textContent =
-            category;
+        option.textContent = t(category);
 
 
         select.appendChild(
@@ -3966,7 +3964,7 @@ function renderAllTransactions() {
         return matchesText && matchesType && matchesCategory && matchesDate;
     }).sort(sortTransactionsNewestFirst);
     container.innerHTML = "";
-    if (!items.length) { container.innerHTML = '<div class="empty-state"><div class="empty-icon"><i class="fa-solid fa-receipt"></i></div><h4>No transactions for ' + escapeHTML(filter === "selected" ? monthLabel() : "this filter") + '</h4></div>'; return; }
+    if (!items.length) { container.innerHTML = '<div class="empty-state"><div class="empty-icon"><i class="fa-solid fa-receipt"></i></div><h4>' + t("No transactions for") + ' ' + escapeHTML(filter === "selected" ? monthLabel() : t("this filter")) + '</h4></div>'; return; }
     const groups = items.reduce(function (all, item) { const key = String(item.date || ""); (all[key] ||= []).push(item); return all; }, {});
     Object.keys(groups).sort(function (a, b) { return b.localeCompare(a); }).forEach(function (date) {
         const group = document.createElement("section"); group.className = "transaction-date-group";
@@ -4457,7 +4455,7 @@ function renderConverterCurrencies(items) {
 function updateConverterStatus(message, kind) {
     const status = document.getElementById("converterStatus");
     if (!status) return;
-    status.textContent = message;
+    status.textContent = t(message);
     status.className = "converter-status" + (kind ? " " + kind : "");
 }
 
@@ -4473,7 +4471,7 @@ function renderConverterRate(rateData, cached) {
     if (!result || !rate || !updated) return;
     if (!rateData || !Number.isFinite(Number(rateData.rate))) {
         result.textContent = "—";
-        rate.textContent = "Reference rate: unavailable";
+        rate.textContent = t("Reference rate: unavailable");
         updated.textContent = "Last updated: —";
         return;
     }
@@ -4718,17 +4716,25 @@ Object.assign(translations.zh, {
 });
 
 Object.assign(translations.zh, {
+    "Expense Tracker":"記帳管理", "Close navigation":"關閉導覽", "Search and filter transactions":"搜尋及篩選交易", "Filter by selected month":"依選定月份篩選", "No transactions for":"沒有符合以下條件的交易", "this filter":"此篩選條件", "View transaction":"查看交易", "Close transaction details":"關閉交易詳情", "Type":"類型", "Total Monthly Budget":"每月總預算", "(optional)":"（選填）", "Leave blank for no category budget":"留空則不設定分類預算", "Category budgets total:":"分類預算總計：", "Save Budget":"儲存預算", "MONTHLY PLAN":"每月規劃", "GUEST DATA":"訪客資料", "Import guest data?":"匯入訪客資料？", "You have transactions saved on this device.":"此裝置上有已儲存的交易。", "Not now":"暫不", "Import":"匯入", "Guest mode":"訪客模式", "Logged out":"已登出", "Transaction form is unavailable. Please reopen it.":"交易表單暫時無法使用，請重新開啟。", "Transaction saved offline and will sync when you reconnect":"交易已離線儲存，重新連線後會同步", "Failed to update transaction. Your changes are still in the form.":"更新交易失敗，變更仍保留在表單中。", "Guest transactions imported":"訪客交易已匯入", "Guest import failed. Your local data is safe.":"匯入訪客交易失敗，本機資料仍安全保留。", "No currencies found.":"找不到貨幣。", "Reference rate: unavailable":"參考匯率：無法取得", "Last updated:":"最後更新：", "cached":"快取", "Ready":"準備完成", "Loading…":"載入中…", "Failed to load currencies":"載入貨幣失敗", "Failed to load exchange rate":"載入匯率失敗", "Close currency picker":"關閉貨幣選擇器", "Currencies":"貨幣", "Choose source currency":"選擇來源貨幣", "Choose target currency":"選擇目標貨幣", "Amount to convert":"換算金額", "Mobile navigation":"行動導覽", "Build version":"建置版本", "REFERENCE RATES":"參考匯率", "CONVERT":"換算", "Estimate your conversion with the latest available reference rate.":"使用最新可用參考匯率估算換算結果。", "Reference rate:":"參考匯率：", "Log out":"登出", "Close":"關閉", "Add transaction":"新增交易", "Delete transaction":"刪除交易", "Transaction updated":"交易已更新", "Transaction saved":"交易已儲存", "Transaction deleted":"交易已刪除", "Failed to save transaction":"儲存交易失敗", "Please login first":"請先登入", "All types":"所有類型", "All categories":"所有分類", "Selected month":"所選月份", "All time":"所有時間", "Last 7 days":"最近 7 天", "Nickname saved":"暱稱已儲存", "Failed to restore transaction":"還原交易失敗", "Could not load budget":"無法載入預算", "Please login to save a budget":"請先登入以儲存預算", "Enter a valid budget amount":"請輸入有效的預算金額", "Category budgets must be greater than zero":"分類預算必須大於零", "Set a total or category budget":"請設定總預算或分類預算", "Budget saved":"預算已儲存", "Failed to save budget":"儲存預算失敗", "Colours saved":"色彩已儲存", "Add a note...":"新增備註…", "Filter by type":"依類型篩選", "Filter by category":"依分類篩選", "Filter by date":"依日期篩選", "Show or hide balance":"顯示或隱藏餘額"
+});
+
+Object.assign(translations.zh, {
     "Your nickname":"你的暱稱", "Sign in to save a nickname":"登入後才能儲存暱稱", "Use a nickname of 1–40 characters":"暱稱長度須為 1 至 40 個字元", "Failed to save nickname":"儲存暱稱失敗", "Personalise your dashboard palette":"自訂儀表板色彩", "Accent colours":"主題色彩", "APPEARANCE":"外觀", "Current primary and secondary colours":"目前的主要與次要色彩", "Customise Colours":"自訂色彩", "Primary Colour":"主要色彩", "Secondary Colour":"次要色彩", "Chosen":"已選擇", "Reset Default":"恢復預設", "Save Colours":"儲存色彩", "Primary colour wheel. Use arrow keys to adjust hue and saturation.":"主要色彩圓盤。使用方向鍵調整色相與飽和度。", "Secondary colour wheel. Use arrow keys to adjust hue and saturation.":"次要色彩圓盤。使用方向鍵調整色相與飽和度。", "Primary colour tone":"主要色彩明暗", "Secondary colour tone":"次要色彩明暗", "Sign in to manage category budgets":"登入以管理分類預算", "Budgets sync securely across your devices.":"預算會安全同步到你的裝置。", "Edit Category Budget":"編輯分類預算", "Delete Category Budget":"刪除分類預算", "Please enter a valid budget amount.":"請輸入有效的預算金額。", "Please select a category.":"請選擇分類。", "Failed to save category budget":"儲存分類預算失敗", "Failed to delete category budget":"刪除分類預算失敗", "Category":"分類", "Amount":"金額", "Save":"儲存", "Cancel":"取消", "Delete":"刪除", "Edit":"編輯", "PLAN":"規劃", "CATEGORY BUDGET":"分類預算", "CATEGORY BUDGETS":"分類預算", "+ Add Category Budget":"＋ 新增分類預算", "Add":"新增", "Set Budget":"設定預算", "Set Total Budget":"設定總預算", "Edit Total Budget":"編輯總預算", "Sign in to manage budgets":"登入以管理預算"
 });
 
 function getLanguage() { return localStorage.getItem("expense_language") === "zh" ? "zh" : "en"; }
 function getLocale() { return getLanguage() === "zh" ? "zh-Hans-MY" : "en-GB"; }
-function t(value) { return translations.zh[value] && getLanguage() === "zh" ? translations.zh[value] : value; }
+function t(value) {
+    if (getLanguage() !== "zh" || typeof value !== "string") return value;
+    if (translations.zh[value]) return translations.zh[value];
+    return value.replace(/Reference rate:/g, "參考匯率：").replace(/Last updated:/g, "最後更新：").replace(/No transactions for/g, "沒有符合以下條件的交易").replace(/this filter/g, "此篩選條件").replace(/over budget/g, "超出預算").replace(/remaining/g, "剩餘").replace(/used/g, "已使用").replace(/cached/g, "快取");
+}
 
 function applyLanguage(language) {
     localStorage.setItem("expense_language", language === "zh" ? "zh" : "en");
     const select = document.getElementById("languageSelect"); if (select) select.value = getLanguage();
-    updateAll(); updateTodayDateLabel();
+    updateAll(); updateBudgetUI(); updateTodayDateLabel();
     const modalTitle = document.querySelector("#transactionModal:not(.hidden) h2"); if (modalTitle) modalTitle.textContent = getTransactionModalTitle();
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
