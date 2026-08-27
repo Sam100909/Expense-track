@@ -1004,9 +1004,15 @@ function dismissActiveModalForNavigation() {
         return true;
     }
     const transactionOpen = state.activeModal === "transaction" || !document.getElementById("transactionModal")?.classList.contains("hidden");
+    const transactionViewOpen = state.activeModal === "view" || !document.getElementById("transactionViewModal")?.classList.contains("hidden");
     const budgetOpen = state.activeModal === "budget" || !document.getElementById("budgetModal")?.classList.contains("hidden");
-    if (transactionOpen) {
+    if (transactionOpen || transactionViewOpen) {
         hideTransactionModal({ discard: true });
+        hideTransactionView();
+        state.activeModal = null;
+        state.editingTransactionId = null;
+        document.body.classList.remove("modal-open");
+        document.documentElement.classList.remove("transaction-modal-open");
         return true;
     }
     if (budgetOpen) {
@@ -1570,18 +1576,6 @@ function displayTransactionModal(type, transaction = null) {
     document.documentElement.classList.add("transaction-modal-open");
     state.activeModal = "transaction";
     startTransactionModalViewport();
-
-
-    setTimeout(
-        function () {
-
-            if (amount) {
-                amount.focus();
-            }
-
-        },
-        100
-    );
 
 }
 
