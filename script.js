@@ -4025,16 +4025,19 @@ function renderAllTransactions() {
         group.innerHTML = '<h2>' + (isToday ? t("Today") + " · " : "") + escapeHTML(displayDate) + '</h2>';
         groups[date].forEach(function (item) {
             const row = document.createElement("article"), amountClass = item.type === "income" ? "income" : "expense";
-            row.className = "transaction-item compact-transaction " + amountClass;
-            row.innerHTML = '<div class="transaction-info"><strong>' + escapeHTML(item.category || "Other") + '</strong><span>' + escapeHTML(item.note || item.type) + '</span></div><strong class="transaction-amount ' + amountClass + '">' + (item.type === "income" ? "+" : "−") + formatCurrency(item.amount) + '</strong><div class="transaction-row-actions"><button type="button" class="text-button" data-edit-transaction="' + escapeHTML(item.id) + '">Edit</button><button type="button" class="text-button transaction-delete" data-delete-transaction="' + escapeHTML(item.id) + '">Delete</button></div>';
+            row.className = "transaction-item compact-transaction transaction-row-trigger " + amountClass;
+            row.setAttribute("role", "button");
+            row.tabIndex = 0;
+            row.setAttribute("aria-label", t("View transaction") + ": " + getCategoryDisplayName(item.category || "Other") + ", " + formatCurrency(item.amount));
+            row.innerHTML = '<div class="transaction-info"><strong>' + escapeHTML(item.category || "Other") + '</strong><span>' + escapeHTML(item.note || item.type) + '</span></div><strong class="transaction-amount ' + amountClass + '">' + (item.type === "income" ? "+" : "−") + formatCurrency(item.amount) + '</strong>';
             row.querySelector(".transaction-info strong").textContent = getCategoryDisplayName(item.category || "Other");
             row.querySelector(".transaction-info span")?.remove();
-            const editButton = row.querySelector("[data-edit-transaction]"), deleteButton = row.querySelector("[data-delete-transaction]");
-            editButton.className = "transaction-icon-action"; deleteButton.className = "transaction-icon-action transaction-delete";
-            editButton.setAttribute("aria-label", t("Edit transaction")); editButton.title = t("Edit transaction"); editButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4Z M13.5 6.5l4 4"/></svg>';
-            deleteButton.setAttribute("aria-label", t("Delete transaction")); deleteButton.title = t("Delete transaction"); deleteButton.innerHTML = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16 M10 11v6 M14 11v6 M9 7l1-2h4l1 2 M6 7l1 13h10l1-13"/></svg>';
-            editButton.addEventListener("click", function (event) { event.stopPropagation(); openTransactionModal(item.type, item); });
-            deleteButton.addEventListener("click", function (event) { event.stopPropagation(); deleteTransaction(item.id); });
+            row.addEventListener("click", function () { openTransactionView(item); });
+            row.addEventListener("keydown", function (event) {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                openTransactionView(item);
+            });
             group.appendChild(row);
         });
         container.appendChild(group);
@@ -4711,7 +4714,7 @@ function setupBudget() {
     if (card) card.innerHTML = '<div class="budget-heading"><div><span class="eyebrow">PLAN</span><h3 id="budgetTitle">Category Budgets</h3></div></div><div id="budgetEmpty" class="budget-empty"><strong>No category budgets set</strong><span>Add a category budget to track your spending.</span></div><div id="categoryBudgetSection" class="category-budget-section hidden"><div class="category-budget-title"><span class="eyebrow">CATEGORY BUDGETS</span><span id="categoryBudgetHint"></span></div><div id="categoryBudgetList" class="category-budget-list"></div></div><button id="addCategoryBudgetButton" class="secondary-button budget-add-category" type="button">+ Add Category Budget</button>';
     const modal = document.getElementById("budgetModal");
     if (!modal) return;
-    modal.innerHTML = '<div class="modal-card budget-modal-card"><div class="modal-header"><div><span class="eyebrow">CATEGORY BUDGET</span><h2 id="budgetModalTitle">Add Category Budget</h2><p id="budgetMonthName"></p></div><button id="closeBudgetModal" class="icon-button" type="button" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><form id="budgetForm"><div class="form-group"><label for="budgetAmountInput">Amount</label><div class="amount-input"><span id="budgetCurrencyPrefix">RM</span><input id="budgetAmountInput" type="number" min="0.01" step="0.01" required></div></div><div class="form-group"><label for="budgetCategorySelect">Category</label><select id="budgetCategorySelect" class="form-input"><option value="">Select category</option></select></div><div class="modal-actions"><button id="cancelBudgetButton" class="secondary-button" type="button">Cancel</button><button class="primary-button" type="submit">Save</button></div></form></div>';
+    modal.innerHTML = '<div class="modal-card budget-modal-card"><div class="modal-header"><div><span class="eyebrow">CATEGORY BUDGET</span><h2 id="budgetModalTitle">Add Category Budget</h2><p id="budgetMonthName"></p></div><button id="closeBudgetModal" class="icon-button" type="button" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><form id="budgetForm"><div class="form-group"><label for="budgetAmountInput">Amount</label><div class="amount-input"><span id="budgetCurrencyPrefix">RM</span><input id="budgetAmountInput" type="number" min="0.01" step="0.01" required></div></div><div class="form-group"><label for="budgetCategorySelect">Category</label><select id="budgetCategorySelect" class="form-input"><option value="">Select category</option></select></div><div class="modal-actions"><button id="cancelBudgetButton" class="secondary-button" type="button">Cancel</button><button id="deleteCategoryBudgetButton" class="danger-button hidden" type="button"><i class="fa-solid fa-trash" aria-hidden="true"></i><span>Delete</span></button><button class="primary-button" type="submit">Save</button></div></form></div>';
     let editingCategory = null;
     const close = function () { closeBudgetModal(); };
     const open = function (category = null) {
@@ -4726,6 +4729,10 @@ function setupBudget() {
         select.value = category || "";
         select.disabled = Boolean(category);
         document.getElementById("budgetAmountInput").value = category ? getCurrentCategoryBudgets()[category] || "" : "";
+        const deleteButton = document.getElementById("deleteCategoryBudgetButton");
+        deleteButton.classList.toggle("hidden", !category);
+        deleteButton.setAttribute("aria-label", t("Delete Category Budget"));
+        deleteButton.title = t("Delete");
         modal.classList.remove("hidden");
         state.activeModal = "budget";
         document.body.classList.add("modal-open");
@@ -4735,6 +4742,22 @@ function setupBudget() {
     document.getElementById("addCategoryBudgetButton")?.addEventListener("click", function () { if (!state.currentUser || state.guestMode) return showToast("Sign in to manage budgets", true); open(); });
     document.getElementById("closeBudgetModal").addEventListener("click", close);
     document.getElementById("cancelBudgetButton").addEventListener("click", close);
+    document.getElementById("deleteCategoryBudgetButton").addEventListener("click", async function () {
+        if (!editingCategory || !state.currentUser || state.guestMode) return;
+        const button = this;
+        button.disabled = true;
+        const ref = doc(db, "users", state.currentUser.uid, "budgets", state.selectedMonth);
+        try {
+            await updateDoc(ref, { ["categories." + editingCategory]: deleteField(), updatedAt: serverTimestamp() });
+            close();
+            showToast(t("Category budget deleted"));
+        } catch (error) {
+            console.error("Failed to delete category budget:", error);
+            showToast(t("Failed to delete category budget"), true);
+        } finally {
+            button.disabled = false;
+        }
+    });
     modal.addEventListener("click", function (event) { if (event.target === modal) close(); });
     document.addEventListener("keydown", function (event) { if (event.key === "Escape" && state.activeModal === "budget") close(); });
     document.getElementById("budgetForm").addEventListener("submit", async function (event) {
@@ -4750,14 +4773,19 @@ function setupBudget() {
         try { if (state.currentBudget) await updateDoc(ref, payload); else await setDoc(ref, { categories: { [category]: amount }, year, month, updatedAt: serverTimestamp() }); close(); showToast("Category budget saved"); }
         catch (error) { console.error("Failed to save category budget:", error); showToast("Failed to save category budget", true); }
     });
-    target?.addEventListener("click", async function (event) {
-        const edit = event.target.closest("[data-edit-budget]"); const remove = event.target.closest("[data-delete-budget]");
-        if (edit) open(edit.dataset.editBudget);
-        if (remove && state.currentUser && !state.guestMode) {
-            const ref = doc(db, "users", state.currentUser.uid, "budgets", state.selectedMonth);
-            try { await updateDoc(ref, { ["categories." + remove.dataset.deleteBudget]: deleteField(), updatedAt: serverTimestamp() }); showToast("Category budget deleted"); }
-            catch (error) { console.error("Failed to delete category budget:", error); showToast("Failed to delete category budget", true); }
-        }
+    const openBudgetRow = function (event) {
+        const row = event.target.closest("[data-budget-row-category]");
+        if (!row || !target?.contains(row)) return;
+        if (!state.currentUser || state.guestMode) return showToast(t("Sign in to manage budgets"), true);
+        open(row.dataset.budgetRowCategory);
+    };
+    target?.addEventListener("click", openBudgetRow);
+    target?.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        const row = event.target.closest("[data-budget-row-category]");
+        if (!row || !target.contains(row)) return;
+        event.preventDefault();
+        openBudgetRow(event);
     });
 }
 
@@ -4783,6 +4811,7 @@ function renderBudgetLanguage() {
     setText(modal, 'label[for="budgetAmountInput"]', "Amount");
     setText(modal, 'label[for="budgetCategorySelect"]', "Category");
     setText(modal, "#cancelBudgetButton", "Cancel");
+    setText(modal, "#deleteCategoryBudgetButton span", "Delete");
     setText(modal, 'button[type="submit"]', "Save");
     const closeButton = modal.querySelector("#closeBudgetModal");
     if (closeButton) closeButton.setAttribute("aria-label", t("Close"));
@@ -4800,10 +4829,9 @@ function updateBudgetUI() {
     renderBudgetLanguage();
     if (!entries.length) { list.innerHTML = ""; return; }
     section.querySelector("#categoryBudgetHint").textContent = monthLabel();
-    list.innerHTML = entries.map(function (item) { const status = item.over ? formatCurrency(item.spent - item.budget) + " over budget" : formatCurrency(item.budget - item.spent) + " remaining"; return '<div class="category-budget-row' + (item.over ? ' over' : '') + '"><div class="category-budget-row-top"><strong>' + escapeHTML(item.category) + '</strong><span>' + formatCurrency(item.spent) + ' / ' + formatCurrency(item.budget) + '</span></div><div class="category-progress"><span style="width:' + Math.min(item.percent, 100) + '%"></span></div><div class="category-budget-status">' + item.percent + '% used · ' + status + '</div><div class="budget-row-actions"><button type="button" class="text-button" data-edit-budget="' + escapeHTML(item.category) + '">Edit</button><button type="button" class="text-button budget-delete" data-delete-budget="' + escapeHTML(item.category) + '">Delete</button></div></div>'; }).join("");
+    list.innerHTML = entries.map(function (item) { const status = item.over ? formatCurrency(item.spent - item.budget) + " over budget" : formatCurrency(item.budget - item.spent) + " remaining"; return '<div class="category-budget-row category-budget-row-trigger' + (item.over ? ' over' : '') + '" role="button" tabindex="0" data-budget-row-category="' + escapeHTML(item.category) + '" aria-label="' + escapeHTML(t("Edit Category Budget") + ": " + getCategoryDisplayName(item.category) + ", " + formatCurrency(item.spent) + " / " + formatCurrency(item.budget)) + '"><div class="category-budget-row-top"><strong>' + escapeHTML(item.category) + '</strong><span>' + formatCurrency(item.spent) + ' / ' + formatCurrency(item.budget) + '</span></div><div class="category-progress"><span style="width:' + Math.min(item.percent, 100) + '%"></span></div><div class="category-budget-status">' + item.percent + '% used · ' + status + '</div></div>'; }).join("");
     list.querySelectorAll(".category-budget-row-top strong").forEach(function (label, index) { label.textContent = getCategoryDisplayName(entries[index].category); });
     list.querySelectorAll(".category-budget-status").forEach(function (status) { const raw = status.dataset.i18nSource || status.textContent; status.dataset.i18nSource = raw; status.textContent = getLanguage() === "zh" ? raw.replace("used", t("used")).replace("over budget", t("over budget")).replace("remaining", t("remaining")) : raw; });
-    list.querySelectorAll("[data-edit-budget],[data-delete-budget]").forEach(function (button) { const editing = Boolean(button.dataset.editBudget); button.classList.add("budget-icon-action"); button.setAttribute("aria-label", t(editing ? "Edit Category Budget" : "Delete Category Budget")); button.setAttribute("title", t(editing ? "Edit" : "Delete")); button.innerHTML = '<i class="fa-solid fa-' + (editing ? "pen" : "trash") + '"></i>'; });
 }
 
 /* Legacy budget implementation retained for reference only. */

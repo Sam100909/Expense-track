@@ -3329,6 +3329,15 @@ body.dark .chart-legend-item { color:var(--text-secondary); }
 .transaction-icon-action:hover,.transaction-icon-action:focus-visible { color:var(--text); background:color-mix(in srgb,var(--primary) 12%,var(--surface-soft)); }
 .transaction-icon-action.transaction-delete { color:var(--danger); }
 .transaction-icon-action svg { width:18px; height:18px; fill:none; stroke:currentColor; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; }
+.compact-transaction.transaction-row-trigger { grid-template-columns:minmax(0,1fr) auto; cursor:pointer; transition:transform .16s ease,background-color .16s ease,box-shadow .16s ease; }
+.compact-transaction.transaction-row-trigger:hover { transform:translateY(-1px); }
+.compact-transaction.transaction-row-trigger:active { transform:scale(.995); }
+.compact-transaction.transaction-row-trigger:focus-visible,.category-budget-row-trigger:focus-visible { outline:3px solid color-mix(in srgb,var(--primary) 38%,transparent); outline-offset:2px; }
+.category-budget-row-trigger { cursor:pointer; transition:transform .16s ease,background-color .16s ease; }
+.category-budget-row-trigger:hover { transform:translateY(-1px); }
+.category-budget-row-trigger:active { transform:scale(.995); }
+.budget-modal-card #deleteCategoryBudgetButton { display:inline-flex; align-items:center; justify-content:center; gap:7px; }
+.budget-modal-card #deleteCategoryBudgetButton.hidden { display:none; }
 .transaction-modal-card { width:min(450px,100%); max-height:calc(100dvh - 40px); padding:23px; }
 .transaction-modal-card .modal-header { margin-bottom:20px; }.transaction-modal-card .form-group { gap:7px; }.transaction-modal-card .amount-input { min-height:50px; }
 @media (max-width:760px) { .transaction-modal-card { width:min(450px,100%); padding:20px 18px; max-height:calc(100dvh - 28px); } .transaction-icon-action { width:42px; height:42px; } }
