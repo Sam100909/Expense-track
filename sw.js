@@ -1,12 +1,12 @@
 // Bump this value whenever app-shell files change. The cache-first fetch
 // strategy otherwise continues serving an older HTML/JavaScript bundle.
-const CACHE_NAME = "expense-track-v67";
+const CACHE_NAME = "expense-track-v68";
 
 const FILES_TO_CACHE = [
 "./",
 "./index.html",
-"./style.css?v=67",
-"./script.js?v=67",
+"./style.css?v=68",
+"./script.js?v=68",
 "./firebase-config.js",
 "./manifest.json",
 "./app-icon.png",
@@ -68,7 +68,7 @@ event.request.destination === "style"
 
 if (shouldPreferNetwork) {
 event.respondWith(
-fetch(event.request)
+fetch(new Request(event.request, { cache: "no-store" }))
 .then(function (response) {
 const copy = response.clone();
 caches.open(CACHE_NAME).then(function (cache) {
