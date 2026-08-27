@@ -4025,13 +4025,13 @@ function renderAllTransactions() {
         group.innerHTML = '<h2>' + (isToday ? t("Today") + " · " : "") + escapeHTML(displayDate) + '</h2>';
         groups[date].forEach(function (item) {
             const row = document.createElement("article"), amountClass = item.type === "income" ? "income" : "expense";
+            const note = String(item.note || "").trim();
             row.className = "transaction-item compact-transaction transaction-row-trigger " + amountClass;
             row.setAttribute("role", "button");
             row.tabIndex = 0;
             row.setAttribute("aria-label", t("View transaction") + ": " + getCategoryDisplayName(item.category || "Other") + ", " + formatCurrency(item.amount));
-            row.innerHTML = '<div class="transaction-info"><strong>' + escapeHTML(item.category || "Other") + '</strong><span>' + escapeHTML(item.note || item.type) + '</span></div><strong class="transaction-amount ' + amountClass + '">' + (item.type === "income" ? "+" : "−") + formatCurrency(item.amount) + '</strong>';
+            row.innerHTML = '<div class="transaction-info"><strong>' + escapeHTML(item.category || "Other") + '</strong>' + (note ? '<span class="transaction-note">' + escapeHTML(note) + '</span>' : '') + '</div><strong class="transaction-amount ' + amountClass + '">' + (item.type === "income" ? "+" : "−") + formatCurrency(item.amount) + '</strong>';
             row.querySelector(".transaction-info strong").textContent = getCategoryDisplayName(item.category || "Other");
-            row.querySelector(".transaction-info span")?.remove();
             row.addEventListener("click", function () { openTransactionView(item); });
             row.addEventListener("keydown", function (event) {
                 if (event.key !== "Enter" && event.key !== " ") return;
