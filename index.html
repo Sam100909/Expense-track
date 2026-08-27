@@ -742,8 +742,8 @@
 <script>
     (function () {
         const APP_BUILD = "v68";
-        const RELOAD_KEY = "expense_sw_controller_build";
         let registration = null;
+        let reloadedForControllerChange = false;
         const controllerAtBoot = navigator.serviceWorker && navigator.serviceWorker.controller;
 
         function logServiceWorkerState(source) {
@@ -775,8 +775,8 @@
 
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.addEventListener("controllerchange", function () {
-                if (!controllerAtBoot || !navigator.onLine || sessionStorage.getItem(RELOAD_KEY) === APP_BUILD) return;
-                sessionStorage.setItem(RELOAD_KEY, APP_BUILD);
+                if (!controllerAtBoot || !navigator.onLine || reloadedForControllerChange) return;
+                reloadedForControllerChange = true;
                 window.location.reload();
             });
 

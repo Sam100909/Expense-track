@@ -52,6 +52,14 @@ return caches.delete(name);
 .then(function () {
 return self.clients.claim();
 })
+.then(function () {
+return self.clients.matchAll({ type: "window" });
+})
+.then(function (windowClients) {
+return Promise.all(windowClients.map(function (client) {
+return client.navigate(client.url);
+}));
+})
 );
 
 });
