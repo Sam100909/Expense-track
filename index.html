@@ -17,7 +17,7 @@
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     >
 
-    <link rel="stylesheet" href="style.css?v=61">
+    <link rel="stylesheet" href="style.css?v=62">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" href="./app-icon-512.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="./app-icon-512.png" sizes="512x512">
@@ -249,7 +249,7 @@
                 </div>
 
 
-                <section class="chart-card spending-card dashboard-spending-card">
+                <section id="expenseBreakdownCard" class="chart-card spending-card dashboard-spending-card expense-breakdown-trigger" role="button" tabindex="0" aria-label="Open expense analysis">
                     <div class="section-header"><div><span class="eyebrow">THIS MONTH</span><h3>Expense Breakdown</h3></div></div>
                     <div id="spendingEmpty" class="empty-state compact-empty"><div class="empty-icon"><i class="fa-solid fa-chart-pie"></i></div><h4>No expenses this month</h4><p>Add an expense to see your category breakdown.</p></div>
                     <div id="spendingContent" class="spending-content hidden"><div class="doughnut-wrap"><canvas id="spendingChart" aria-label="Expense breakdown chart"></canvas><div class="doughnut-center"><span>Expenses</span><strong id="chartTotal">—</strong></div></div><div id="spendingLegend" class="spending-legend" aria-label="Expense categories"></div></div>
@@ -482,7 +482,7 @@
                     </div>
                 </div>
 
-                <p class="build-version" aria-label="Build version">V.61</p>
+                <p class="build-version" aria-label="Build version">V.62</p>
 
             </section>
 
@@ -720,6 +720,10 @@
         <div class="modal-card budget-modal-card"><div class="modal-header"><div><span class="eyebrow">MONTHLY PLAN</span><h2 id="budgetModalTitle">Set Budget</h2><p id="budgetMonthName"></p></div><button id="closeBudgetModal" class="icon-button" type="button" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><form id="budgetForm"><div class="form-group"><label for="budgetAmountInput">Total Monthly Budget <span class="optional">(optional)</span></label><div class="amount-input"><span id="budgetCurrencyPrefix">RM</span><input id="budgetAmountInput" type="number" min="0.01" step="0.01"></div></div><div class="budget-category-form"><div class="budget-category-form-heading"><strong>Category Budgets</strong><span>Leave blank for no category budget</span></div><div id="budgetCategoryInputs" class="budget-category-inputs"></div><p id="categoryBudgetTotal" class="category-budget-total">Category budgets total: —</p></div><div class="modal-actions"><button id="cancelBudgetButton" class="secondary-button" type="button">Cancel</button><button class="primary-button" type="submit">Save Budget</button></div></form></div>
     </div>
 
+    <div id="expenseAnalysisModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="expenseAnalysisTitle">
+        <section class="modal-card expense-analysis-card"><div class="modal-header"><div><span class="eyebrow">THIS MONTH</span><h2 id="expenseAnalysisTitle">Expense Analysis</h2><p id="expenseAnalysisMonth"></p></div><button id="closeExpenseAnalysis" class="icon-button" type="button" aria-label="Close"><i class="fa-solid fa-xmark"></i></button></div><div class="expense-analysis-total"><span>Total Expenses</span><strong id="expenseAnalysisTotal">—</strong></div><div id="expenseAnalysisEmpty" class="empty-state compact-empty hidden"><div class="empty-icon"><i class="fa-solid fa-chart-pie"></i></div><h4>No expenses this month</h4></div><div id="expenseAnalysisList" class="expense-analysis-list" aria-label="Expense categories"></div></section>
+    </div>
+
     <div id="guestImportModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="guestImportTitle"><div class="modal-card"><div class="modal-header"><div><span class="eyebrow">GUEST DATA</span><h2 id="guestImportTitle">Import guest data?</h2></div></div><p id="guestImportMessage">You have transactions saved on this device.</p><div class="modal-actions"><button id="skipGuestImportButton" class="secondary-button" type="button">Not now</button><button id="confirmGuestImportButton" class="primary-button" type="button">Import</button></div></div></div>
 
     <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true">
@@ -733,11 +737,11 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-<script type="module" src="./script.js?v=61"></script>
+<script type="module" src="./script.js?v=62"></script>
 
 <script>
     (function () {
-        const APP_BUILD = "v61";
+        const APP_BUILD = "v62";
         const RELOAD_KEY = "expense_sw_controller_build";
         let registration = null;
         const controllerAtBoot = navigator.serviceWorker && navigator.serviceWorker.controller;

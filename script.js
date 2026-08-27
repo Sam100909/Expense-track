@@ -118,6 +118,7 @@ document.addEventListener("DOMContentLoaded", function () {
     setupTransactionModal();
     setupTransactionView();
     setupHistoryNavigation();
+    setupExpenseAnalysis();
     setupQuickActions();
     setupFilters();
     setupSettings();
@@ -997,6 +998,11 @@ function dismissActiveModalForNavigation() {
         hideAppearanceModal({ restore: true });
         return true;
     }
+    const expenseAnalysisOpen = state.activeModal === "expense-analysis" || !document.getElementById("expenseAnalysisModal")?.classList.contains("hidden");
+    if (expenseAnalysisOpen) {
+        hideExpenseAnalysis();
+        return true;
+    }
     const transactionOpen = state.activeModal === "transaction" || !document.getElementById("transactionModal")?.classList.contains("hidden");
     const budgetOpen = state.activeModal === "budget" || !document.getElementById("budgetModal")?.classList.contains("hidden");
     if (transactionOpen) {
@@ -1648,10 +1654,16 @@ function restoreModalFromHistory(entry) {
         }
     }
 
+    if (entry.modal === "expense-analysis") {
+        showExpenseAnalysis({ fromHistory: true });
+        return;
+    }
+
     hideTransactionModal();
     hideTransactionView();
     hideBudgetModal();
     hideAppearanceModal();
+    hideExpenseAnalysis();
 
 }
 
@@ -3497,6 +3509,7 @@ function updateAll() {
     }
 
     updateGreeting();
+    renderExpenseAnalysis();
 
 }
 
@@ -4340,9 +4353,7 @@ const chartExternalLabels = {
 function renderSpendingBreakdown() {
     const empty = document.getElementById("spendingEmpty"), content = document.getElementById("spendingContent");
     if (!isDashboardReady()) return;
-    const expenses = getSelectedMonthTransactions().filter(function (item) { return item.type === "expense"; });
-    const totals = expenses.reduce(function (all, item) { const key = item.category || "Other"; all[key] = (all[key] || 0) + Number(item.amount || 0); return all; }, {});
-    const entries = Object.entries(totals).sort(function (a, b) { return b[1] - a[1]; }), total = entries.reduce(function (sum, item) { return sum + item[1]; }, 0);
+    const breakdown = getSelectedMonthExpenseBreakdown(), entries = breakdown.entries, total = breakdown.total;
     const styles = getComputedStyle(document.documentElement);
     const visualSignature = [getLanguage(), styles.getPropertyValue("--primary").trim(), styles.getPropertyValue("--secondary").trim()].join("|");
     const signature = [state.dashboardUid, state.selectedMonth, total, entries.map(function (entry) { return entry[0] + ":" + entry[1]; }).join(","), visualSignature].join("|");
@@ -4367,6 +4378,76 @@ function renderSpendingBreakdown() {
     }
     state.spendingChart = new Chart(document.getElementById("spendingChart"), { type: "doughnut", data: { labels: labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0, borderRadius: 10, spacing: 2, hoverOffset: 0 }] }, options: { responsive: true, maintainAspectRatio: false, cutout: "84%", animation: false, events: [], plugins: { legend: { display: false }, tooltip: { enabled: false } } } });
     recordDashboardRender("chartCreate");
+}
+
+function getSelectedMonthExpenseBreakdown() {
+    const totals = getSelectedMonthTransactions().filter(function (item) { return item.type === "expense"; }).reduce(function (all, item) {
+        const category = item.category || "Other";
+        all[category] = (all[category] || 0) + Number(item.amount || 0);
+        return all;
+    }, {});
+    const entries = Object.entries(totals).sort(function (a, b) { return b[1] - a[1]; });
+    return { entries: entries, total: entries.reduce(function (sum, entry) { return sum + entry[1]; }, 0) };
+}
+
+function setupExpenseAnalysis() {
+    const card = document.getElementById("expenseBreakdownCard"), modal = document.getElementById("expenseAnalysisModal");
+    if (!card || !modal) return;
+    card.addEventListener("click", function () { showExpenseAnalysis(); });
+    card.addEventListener("keydown", function (event) {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        showExpenseAnalysis();
+    });
+    document.getElementById("closeExpenseAnalysis")?.addEventListener("click", closeExpenseAnalysis);
+    modal.addEventListener("click", function (event) { if (event.target === modal) closeExpenseAnalysis(); });
+    document.addEventListener("keydown", function (event) { if (event.key === "Escape" && state.activeModal === "expense-analysis") closeExpenseAnalysis(); });
+}
+
+function showExpenseAnalysis(options = {}) {
+    const modal = document.getElementById("expenseAnalysisModal");
+    if (!modal || (state.activeModal === "expense-analysis" && !modal.classList.contains("hidden"))) return;
+    if (!options.fromHistory) history.pushState(createHistoryState(state.currentPage, "expense-analysis"), "", window.location.href);
+    renderExpenseAnalysis();
+    modal.classList.remove("hidden");
+    document.body.classList.add("modal-open");
+    state.activeModal = "expense-analysis";
+    document.getElementById("closeExpenseAnalysis")?.focus();
+}
+
+function closeExpenseAnalysis() {
+    if (state.activeModal === "expense-analysis" && history.state?.expenseTracker && history.state.modal === "expense-analysis") {
+        history.back();
+        return;
+    }
+    hideExpenseAnalysis();
+}
+
+function hideExpenseAnalysis() {
+    const modal = document.getElementById("expenseAnalysisModal");
+    modal?.classList.add("hidden");
+    if (state.activeModal === "expense-analysis") state.activeModal = null;
+    document.body.classList.remove("modal-open");
+}
+
+function renderExpenseAnalysis() {
+    const modal = document.getElementById("expenseAnalysisModal");
+    if (!modal) return;
+    const breakdown = getSelectedMonthExpenseBreakdown(), entries = breakdown.entries, total = breakdown.total;
+    const title = document.getElementById("expenseAnalysisTitle"), month = document.getElementById("expenseAnalysisMonth"), totalLabel = modal.querySelector(".expense-analysis-total span"), totalAmount = document.getElementById("expenseAnalysisTotal"), empty = document.getElementById("expenseAnalysisEmpty"), list = document.getElementById("expenseAnalysisList");
+    if (title) title.textContent = t("Expense Analysis");
+    if (month) month.textContent = monthLabel();
+    if (totalLabel) totalLabel.textContent = t("Total Expenses");
+    if (totalAmount) totalAmount.textContent = formatCurrency(total);
+    if (empty) { empty.classList.toggle("hidden", total > 0); empty.querySelector("h4").textContent = t("No expenses this month"); }
+    if (!list) return;
+    list.classList.toggle("hidden", total <= 0);
+    list.innerHTML = entries.map(function (entry) {
+        const percentage = total ? entry[1] / total * 100 : 0;
+        const label = Number.isInteger(percentage) ? String(percentage) : percentage.toFixed(1).replace(/\.0$/, "");
+        const colour = getCategoryColor(entry[0]);
+        return '<article class="expense-analysis-row"><div class="expense-analysis-row-heading"><span class="expense-analysis-category"><i style="background:' + colour + '"></i>' + escapeHTML(getCategoryDisplayName(entry[0])) + '</span><strong>' + formatCurrency(entry[1]) + '</strong></div><div class="expense-analysis-progress"><span style="width:' + percentage + '%;background:' + colour + '"></span></div><small>' + label + '%</small></article>';
+    }).join("");
 }
 
 /* =========================================================
@@ -4794,6 +4875,10 @@ Object.assign(translations.zh, {
 
 Object.assign(translations.zh, {
     "Updated":"更新於", "Updated —":"更新於 —", "Reference rate only":"僅供參考匯率", "Nickname saved locally.":"暱稱已儲存在本機。"
+});
+
+Object.assign(translations.zh, {
+    "Expense Analysis":"开销分析", "Total Expenses":"总支出", "No expenses this month":"本月暂无支出", "Open expense analysis":"打开开销分析"
 });
 
 function getLanguage() { return localStorage.getItem("expense_language") === "zh" ? "zh" : "en"; }
