@@ -17,7 +17,7 @@
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     >
 
-    <link rel="stylesheet" href="style.css?v=70">
+    <link rel="stylesheet" href="style.css?v=71">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" href="./app-icon-512.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="./app-icon-512.png" sizes="512x512">
@@ -482,7 +482,7 @@
                     </div>
                 </div>
 
-                <p id="buildVersion" class="build-version" aria-label="Build version">V.70</p>
+                <p id="buildVersion" class="build-version" aria-label="Build version">V.71</p>
 
             </section>
 
@@ -737,11 +737,11 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-<script type="module" src="./script.js?v=70"></script>
+<script type="module" src="./script.js?v=71"></script>
 
 <script>
     (function () {
-        const APP_BUILD = "v70";
+        const APP_BUILD = "v71";
         const buildVersion = document.getElementById("buildVersion");
         if (buildVersion) buildVersion.textContent = "V." + APP_BUILD.replace(/^v/i, "");
         let registration = null;
@@ -775,6 +775,17 @@
                 .catch(function (error) { console.warn("[sw] update check failed:", error); });
         }
 
+        function reloadIfControllerIsNewer() {
+            if (reloadedForControllerChange) return;
+            const controllerUrl = navigator.serviceWorker?.controller?.scriptURL;
+            const controllerBuild = controllerUrl ? new URL(controllerUrl).searchParams.get("build") : null;
+            const appBuildNumber = Number(String(APP_BUILD).replace(/^v/i, ""));
+            const controllerBuildNumber = Number(String(controllerBuild || "").replace(/^v/i, ""));
+            if (!Number.isFinite(controllerBuildNumber) || controllerBuildNumber <= appBuildNumber) return;
+            reloadedForControllerChange = true;
+            window.location.reload();
+        }
+
         if ("serviceWorker" in navigator) {
             navigator.serviceWorker.addEventListener("controllerchange", function () {
                 if (!controllerAtBoot || !navigator.onLine || reloadedForControllerChange) return;
@@ -789,6 +800,7 @@
                         logServiceWorkerState("startup");
                         activateWaitingWorker("startup");
                         checkForUpdate("startup");
+                        reloadIfControllerIsNewer();
                         registration.addEventListener("updatefound", function () {
                             const installing = registration.installing;
                             if (!installing) return;
@@ -803,7 +815,10 @@
                     });
             });
 
-            window.addEventListener("pageshow", function () { checkForUpdate("pageshow"); });
+            window.addEventListener("pageshow", function () {
+                checkForUpdate("pageshow");
+                reloadIfControllerIsNewer();
+            });
             document.addEventListener("visibilitychange", function () {
                 if (!document.hidden) checkForUpdate("foreground");
             });
