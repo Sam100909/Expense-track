@@ -17,7 +17,7 @@
         href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     >
 
-    <link rel="stylesheet" href="style.css?v=66">
+    <link rel="stylesheet" href="style.css?v=67">
     <link rel="manifest" href="./manifest.json">
     <link rel="icon" href="./app-icon-512.png" type="image/png" sizes="512x512">
     <link rel="apple-touch-icon" href="./app-icon-512.png" sizes="512x512">
@@ -737,11 +737,11 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
-<script type="module" src="./script.js?v=66"></script>
+<script type="module" src="./script.js?v=67"></script>
 
 <script>
     (function () {
-        const APP_BUILD = "v66";
+        const APP_BUILD = "v67";
         const RELOAD_KEY = "expense_sw_controller_build";
         let registration = null;
         const controllerAtBoot = navigator.serviceWorker && navigator.serviceWorker.controller;
@@ -781,7 +781,7 @@
             });
 
             window.addEventListener("load", function () {
-                navigator.serviceWorker.register("./sw.js", { updateViaCache: "none" })
+                navigator.serviceWorker.register("./sw.js?build=" + APP_BUILD, { updateViaCache: "none" })
                     .then(function (nextRegistration) {
                         registration = nextRegistration;
                         logServiceWorkerState("startup");
