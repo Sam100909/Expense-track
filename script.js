@@ -1688,8 +1688,7 @@ function hideAppearanceModal(options = {}) {
         : modal.__appearanceRestoreOnClose !== false;
     const original = modal.__appearanceOriginal;
     if (restore && original) {
-        document.documentElement.style.setProperty("--primary", original.primary);
-        document.documentElement.style.setProperty("--secondary", original.secondary);
+        applyAccentColors(original.primary, original.secondary);
         modal.__appearanceRefresh?.();
     }
 
@@ -3038,11 +3037,7 @@ function setupSettings() {
             "input",
             function () {
 
-                document.documentElement
-                    .style.setProperty(
-                        "--primary",
-                        primary.value
-                    );
+                applyAccentColors(primary.value, getComputedStyle(document.documentElement).getPropertyValue("--secondary").trim());
 
             }
         );
@@ -3056,11 +3051,7 @@ function setupSettings() {
             "input",
             function () {
 
-                document.documentElement
-                    .style.setProperty(
-                        "--secondary",
-                        secondary.value
-                    );
+                applyAccentColors(getComputedStyle(document.documentElement).getPropertyValue("--primary").trim(), secondary.value);
 
             }
         );
@@ -3110,18 +3101,7 @@ function setupSettings() {
                 }
 
 
-                document.documentElement
-                    .style.setProperty(
-                        "--primary",
-                        random[0]
-                    );
-
-
-                document.documentElement
-                    .style.setProperty(
-                        "--secondary",
-                        random[1]
-                    );
+                applyAccentColors(random[0], random[1]);
 
 
                 showToast(
@@ -3430,6 +3410,26 @@ function loadLocalSettingsLegacy() {
 /* =========================================================
    THEME
 ========================================================= */
+
+function getContrastTextColor(hex) {
+    const value = String(hex || "").trim().replace(/^#/, "");
+    const expanded = value.length === 3 ? value.split("").map(function (channel) { return channel + channel; }).join("") : value;
+    if (!/^[0-9a-f]{6}$/i.test(expanded)) return "#111111";
+    const channels = [0, 2, 4].map(function (offset) { return parseInt(expanded.slice(offset, offset + 2), 16) / 255; });
+    const luminance = channels.map(function (channel) { return channel <= .04045 ? channel / 12.92 : Math.pow((channel + .055) / 1.055, 2.4); }).reduce(function (sum, channel, index) { return sum + channel * [0.2126, 0.7152, 0.0722][index]; }, 0);
+    const whiteContrast = 1.05 / (luminance + .05), darkContrast = (luminance + .05) / .05;
+    return whiteContrast >= darkContrast ? "#FFFFFF" : "#111111";
+}
+
+function applyAccentColors(primary, secondary) {
+    const valid = function (color, fallback) { return /^#[0-9a-f]{6}$/i.test(String(color || "")) ? String(color).toUpperCase() : fallback; };
+    const nextPrimary = valid(primary, "#7C5CFC"), nextSecondary = valid(secondary, "#5CC8FF");
+    const root = document.documentElement;
+    root.style.setProperty("--primary", nextPrimary);
+    root.style.setProperty("--primary-contrast", getContrastTextColor(nextPrimary));
+    root.style.setProperty("--secondary", nextSecondary);
+    root.style.setProperty("--secondary-contrast", getContrastTextColor(nextSecondary));
+}
 
 function applyTheme(theme) {
 
@@ -4191,7 +4191,7 @@ function setupAppearancePersistence() {
         wheels.forEach(drawWheel);
     };
     const refresh = function () { const styles = getComputedStyle(document.documentElement); if (preview) { preview.children[0].style.background = styles.getPropertyValue("--primary").trim(); preview.children[1].style.background = styles.getPropertyValue("--secondary").trim(); } renderSpendingBreakdown(); };
-    const apply = function () { values.primary = colourAtTone("primary"); values.secondary = colourAtTone("secondary"); document.documentElement.style.setProperty("--primary", values.primary); document.documentElement.style.setProperty("--secondary", values.secondary); updateControls(); refresh(); };
+    const apply = function () { values.primary = colourAtTone("primary"); values.secondary = colourAtTone("secondary"); applyAccentColors(values.primary, values.secondary); updateControls(); refresh(); };
     const setBaseFromValue = function (target, colour) {
         const hsv = hexToHsv(colour); values[target] = colour;
         if (hsv.value < .01) { baseColours[target] = "#000000"; tones[target] = 0; return; }
@@ -4261,8 +4261,7 @@ function applySavedAccentColors() {
     const secondary = localStorage.getItem("expense_secondary_color");
     const hasCustomColors = localStorage.getItem("expense_has_custom_colors") === "true";
     const defaultPrimary = "#7C5CFC", defaultSecondary = "#5CC8FF";
-    document.documentElement.style.setProperty("--primary", hasCustomColors && primary && /^#[0-9a-f]{6}$/i.test(primary) ? primary : defaultPrimary);
-    document.documentElement.style.setProperty("--secondary", hasCustomColors && secondary && /^#[0-9a-f]{6}$/i.test(secondary) ? secondary : defaultSecondary);
+    applyAccentColors(hasCustomColors && primary && /^#[0-9a-f]{6}$/i.test(primary) ? primary : defaultPrimary, hasCustomColors && secondary && /^#[0-9a-f]{6}$/i.test(secondary) ? secondary : defaultSecondary);
 }
 
 function migrateLegacyThemeColors() {
