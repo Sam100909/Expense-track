@@ -44,6 +44,7 @@ const state = {
     currentUser: null,
     nickname: "",
     nicknameSaving: false,
+    nicknameRequestId: 0,
     unsubscribeTransactions: null,
     guestMode: false,
     authResolved: false,
@@ -150,11 +151,13 @@ onAuthStateChanged(auth, function (user) {
         state.currentUser = user;
         state.guestMode = false;
         state.transactionsLoaded = false;
-        state.nickname = "";
+        const nicknameRequestId = ++state.nicknameRequestId;
+        state.nickname = getCachedNickname(user.uid);
         beginDashboardLoad(user.uid);
 
         updateUserProfile(user);
-        loadNickname(user);
+        updateNicknameInput();
+        loadNickname(user, nicknameRequestId);
 
         completeStartup("app");
 
@@ -168,6 +171,7 @@ onAuthStateChanged(auth, function (user) {
 
             state.currentUser = null;
             state.nickname = "";
+            state.nicknameRequestId++;
             resetDashboardDisplay();
             state.transactions = [];
             state.transactionsLoaded = false;
@@ -3262,25 +3266,37 @@ function isValidNickname(value) {
 }
 
 
+function getNicknameCacheKey(uid) {
+    return "expense_nickname_" + uid;
+}
+
+
+function getCachedNickname(uid) {
+    const nickname = normalizeNickname(localStorage.getItem(getNicknameCacheKey(uid)));
+    return isValidNickname(nickname) ? nickname : "";
+}
+
+
 function updateNicknameInput() {
     const input = document.getElementById("nicknameInput");
     if (input) input.value = state.nickname;
 }
 
 
-async function loadNickname(user) {
+async function loadNickname(user, requestId) {
     if (!user) return;
-    const cacheKey = "expense_nickname_" + user.uid;
-    const cached = normalizeNickname(localStorage.getItem(cacheKey));
+    const cached = getCachedNickname(user.uid);
     try {
         const snapshot = await getDoc(doc(db, "users", user.uid, "profile", "settings"));
+        if (state.currentUser?.uid !== user.uid || requestId !== state.nicknameRequestId) return;
         const nickname = snapshot.exists() ? normalizeNickname(snapshot.data().nickname) : "";
         state.nickname = isValidNickname(nickname) ? nickname : (isValidNickname(cached) ? cached : "");
-        if (isValidNickname(nickname)) localStorage.setItem(cacheKey, nickname);
+        if (isValidNickname(nickname)) localStorage.setItem(getNicknameCacheKey(user.uid), nickname);
         updateUserProfile(user);
         updateNicknameInput();
     } catch (error) {
         console.error("Failed to load nickname:", error);
+        if (state.currentUser?.uid !== user.uid || requestId !== state.nicknameRequestId) return;
         state.nickname = isValidNickname(cached) ? cached : "";
         updateUserProfile(user); updateNicknameInput();
     }
@@ -3298,21 +3314,19 @@ function setupNicknameSetting() {
         const nickname = normalizeNickname(input.value);
         if (!isValidNickname(nickname)) return showToast("Use a nickname of 1–40 characters", true);
         const button = document.getElementById("saveNicknameButton");
+        const user = state.currentUser;
         state.nicknameSaving = true;
+        state.nicknameRequestId++;
+        state.nickname = nickname;
+        localStorage.setItem(getNicknameCacheKey(user.uid), nickname);
+        input.value = nickname;
+        updateUserProfile(user);
         if (button) button.disabled = true;
         try {
-            await setDoc(doc(db, "users", state.currentUser.uid, "profile", "settings"), { nickname: nickname, updatedAt: serverTimestamp() }, { merge: true });
-            state.nickname = nickname;
-            localStorage.setItem("expense_nickname_" + state.currentUser.uid, nickname);
-            input.value = nickname;
-            updateUserProfile(state.currentUser);
+            await setDoc(doc(db, "users", user.uid, "profile", "settings"), { nickname: nickname, updatedAt: serverTimestamp() }, { merge: true });
             showToast("Nickname saved");
         } catch (error) {
             console.error("Failed to save nickname:", error);
-            state.nickname = nickname;
-            localStorage.setItem("expense_nickname_" + state.currentUser.uid, nickname);
-            input.value = nickname;
-            updateUserProfile(state.currentUser);
             showToast("Nickname saved locally.");
         } finally {
             state.nicknameSaving = false;
