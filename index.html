@@ -482,7 +482,7 @@
                     </div>
                 </div>
 
-                <p class="build-version" aria-label="Build version">V.65</p>
+                <p id="buildVersion" class="build-version" aria-label="Build version">V.68</p>
 
             </section>
 
@@ -742,6 +742,8 @@
 <script>
     (function () {
         const APP_BUILD = "v68";
+        const buildVersion = document.getElementById("buildVersion");
+        if (buildVersion) buildVersion.textContent = "V." + APP_BUILD.replace(/^v/i, "");
         let registration = null;
         let reloadedForControllerChange = false;
         const controllerAtBoot = navigator.serviceWorker && navigator.serviceWorker.controller;
