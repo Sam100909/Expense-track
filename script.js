@@ -1648,7 +1648,14 @@ function restoreModalFromHistory(entry) {
         }
     }
 
+    if (entry.modal === "expense-category") {
+        showExpenseAnalysis({ fromHistory: true });
+        showExpenseCategory(entry.category, { fromHistory: true });
+        return;
+    }
+
     if (entry.modal === "expense-analysis") {
+        hideExpenseCategory();
         showExpenseAnalysis({ fromHistory: true });
         return;
     }
@@ -4396,9 +4403,28 @@ function setupExpenseAnalysis() {
         event.preventDefault();
         showExpenseAnalysis();
     });
+    const list = document.getElementById("expenseAnalysisList");
+    list?.addEventListener("click", function (event) {
+        const row = event.target.closest("[data-expense-category]");
+        if (row) showExpenseCategory(row.dataset.expenseCategory);
+    });
+    list?.addEventListener("keydown", function (event) {
+        const row = event.target.closest("[data-expense-category]");
+        if (!row || (event.key !== "Enter" && event.key !== " ")) return;
+        event.preventDefault();
+        showExpenseCategory(row.dataset.expenseCategory);
+    });
+    document.getElementById("closeExpenseCategory")?.addEventListener("click", closeExpenseCategory);
+    document.getElementById("expenseCategoryModal")?.addEventListener("click", function (event) {
+        if (event.target === event.currentTarget) closeExpenseCategory();
+    });
     document.getElementById("closeExpenseAnalysis")?.addEventListener("click", closeExpenseAnalysis);
     modal.addEventListener("click", function (event) { if (event.target === modal) closeExpenseAnalysis(); });
-    document.addEventListener("keydown", function (event) { if (event.key === "Escape" && state.activeModal === "expense-analysis") closeExpenseAnalysis(); });
+    document.addEventListener("keydown", function (event) {
+        if (event.key !== "Escape") return;
+        if (state.activeModal === "expense-category") closeExpenseCategory();
+        else if (state.activeModal === "expense-analysis") closeExpenseAnalysis();
+    });
 }
 
 function showExpenseAnalysis(options = {}) {
@@ -4421,16 +4447,69 @@ function closeExpenseAnalysis() {
 }
 
 function hideExpenseAnalysis() {
+    hideExpenseCategory();
     const modal = document.getElementById("expenseAnalysisModal");
     modal?.classList.add("hidden");
     if (state.activeModal === "expense-analysis") state.activeModal = null;
     document.body.classList.remove("modal-open");
 }
 
+function showExpenseCategory(category, options = {}) {
+    const modal = document.getElementById("expenseCategoryModal");
+    if (!modal) return;
+    if (!options.fromHistory) history.pushState({ ...createHistoryState(state.currentPage, "expense-category"), category: category }, "", window.location.href);
+    modal.dataset.category = category;
+    renderExpenseCategory();
+    modal.classList.remove("hidden");
+    document.getElementById("expenseAnalysisModal").inert = true;
+    document.body.classList.add("modal-open");
+    state.activeModal = "expense-category";
+    document.getElementById("closeExpenseCategory")?.focus();
+}
+
+function closeExpenseCategory() {
+    if (state.activeModal === "expense-category" && history.state?.expenseTracker && history.state.modal === "expense-category") {
+        history.back();
+        return;
+    }
+    hideExpenseCategory();
+}
+
+function hideExpenseCategory() {
+    const modal = document.getElementById("expenseCategoryModal");
+    if (!modal || modal.classList.contains("hidden")) return;
+    modal.classList.add("hidden");
+    document.getElementById("expenseAnalysisModal").inert = false;
+    state.activeModal = "expense-analysis";
+    const row = Array.from(document.querySelectorAll("[data-expense-category]")).find(function (item) {
+        return item.dataset.expenseCategory === modal.dataset.category;
+    });
+    (row || document.getElementById("closeExpenseAnalysis"))?.focus();
+}
+
+function renderExpenseCategory() {
+    const modal = document.getElementById("expenseCategoryModal");
+    if (!modal || modal.dataset.category === undefined) return;
+    const category = modal.dataset.category;
+    const transactions = getSelectedMonthTransactions().filter(function (item) {
+        return item.type === "expense" && (item.category || "Other") === category;
+    }).sort(sortTransactionsNewestFirst);
+    document.getElementById("expenseCategoryTitle").textContent = getCategoryDisplayName(category);
+    document.getElementById("expenseCategoryMonth").textContent = monthLabel();
+    modal.querySelector(".expense-analysis-total span").textContent = t("Total Expenses");
+    document.getElementById("expenseCategoryTotal").textContent = formatCurrency(transactions.reduce(function (sum, item) {
+        return sum + Number(item.amount || 0);
+    }, 0));
+    document.getElementById("expenseCategoryTransactions").innerHTML = transactions.map(function (item) {
+        return '<article class="expense-analysis-row expense-category-transaction"><div><small>' + escapeHTML(item.date || "—") + '</small><p>' + escapeHTML(item.note || "—") + '</p></div><strong>' + formatCurrency(item.amount) + '</strong></article>';
+    }).join("");
+}
+
 function renderExpenseAnalysis() {
     const modal = document.getElementById("expenseAnalysisModal");
     if (!modal) return;
     const breakdown = getSelectedMonthExpenseBreakdown(), entries = breakdown.entries, total = breakdown.total;
+    renderExpenseCategory();
     const title = document.getElementById("expenseAnalysisTitle"), month = document.getElementById("expenseAnalysisMonth"), totalLabel = modal.querySelector(".expense-analysis-total span"), totalAmount = document.getElementById("expenseAnalysisTotal"), empty = document.getElementById("expenseAnalysisEmpty"), list = document.getElementById("expenseAnalysisList");
     if (title) title.textContent = t("Expense Analysis");
     if (month) month.textContent = monthLabel();
@@ -4443,7 +4522,7 @@ function renderExpenseAnalysis() {
         const percentage = total ? entry[1] / total * 100 : 0;
         const label = Number.isInteger(percentage) ? String(percentage) : percentage.toFixed(1).replace(/\.0$/, "");
         const colour = getCategoryColor(entry[0]);
-        return '<article class="expense-analysis-row"><div class="expense-analysis-row-heading"><span class="expense-analysis-category"><i style="background:' + colour + '"></i>' + escapeHTML(getCategoryDisplayName(entry[0])) + '</span><strong>' + formatCurrency(entry[1]) + '</strong></div><div class="expense-analysis-progress"><span style="width:' + percentage + '%;background:' + colour + '"></span></div><small>' + label + '%</small></article>';
+        return '<article class="expense-analysis-row" role="button" tabindex="0" data-expense-category="' + escapeHTML(entry[0]) + '" aria-haspopup="dialog"><div class="expense-analysis-row-heading"><span class="expense-analysis-category"><i style="background:' + colour + '"></i>' + escapeHTML(getCategoryDisplayName(entry[0])) + '</span><strong>' + formatCurrency(entry[1]) + '</strong></div><div class="expense-analysis-progress"><span style="width:' + percentage + '%;background:' + colour + '"></span></div><small>' + label + '%</small></article>';
     }).join("");
 }
 
