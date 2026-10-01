@@ -3463,6 +3463,19 @@ body.dark .converter-card,body.dark .currency-selector-card { background:var(--s
 #expenseAnalysisList [data-expense-category] { cursor:pointer; }
 #expenseAnalysisList [data-expense-category]:focus-visible { outline:2px solid var(--primary); outline-offset:3px; }
 #expenseCategoryModal { z-index:1001; }
+.dashboard-month-header { position:relative; touch-action:pan-y; }
+.dashboard-month-heading { min-width:0; flex:1; }
+.month-label-button { display:flex; align-items:center; gap:6px; max-width:calc(100% - 88px); min-height:24px; margin:-4px 0 0; padding:0; border:0; background:none; color:var(--text-tertiary); font-family:inherit; cursor:pointer; text-align:left; }
+.month-label-button span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.month-label-button i { font-size:9px; }
+.month-arrows { position:absolute; right:0; top:-14px; display:flex; }
+.month-arrows .icon-button { width:44px; height:44px; min-width:44px; min-height:44px; padding:0; border:0; background:none; box-shadow:none; color:var(--text-secondary); }
+.dashboard-month-heading h3 { white-space:nowrap; }
+.income-analysis-trigger { width:100%; border:0; font:inherit; text-align:left; cursor:pointer; }
+.filter-toggle[aria-expanded="true"] { color:var(--primary); }
+.transaction-advanced-filters .search-box { flex:1 1 100%; min-width:0; }
+#dashboardMonthInput { width:100%; min-width:0; }
+@media (max-width:380px) { .month-label-button { letter-spacing:.06em; font-size:10px; } }
 #expenseCategoryModal .expense-category-card { width:min(520px,100%); max-height:calc(100dvh - 40px); padding:24px; }
 .expense-category-transaction { display:flex; align-items:center; justify-content:space-between; gap:14px; }
 .expense-category-transaction > div { min-width:0; }

@@ -3,6 +3,7 @@ import { app, db } from "./firebase-config.js";
 import {
     getAuth,
     GoogleAuthProvider,
+    signInWithCredential,
     signInWithPopup,
     onAuthStateChanged,
     signOut
@@ -31,6 +32,61 @@ import {
 const auth = getAuth(app);
 const googleProvider = new GoogleAuthProvider();
 
+function getNativePlugin(name) {
+    return window.Capacitor?.isNativePlatform?.()
+        ? window.Capacitor?.Plugins?.[name]
+        : null;
+}
+
+async function signInWithNativeGoogle() {
+    const firebaseAuthentication = getNativePlugin("FirebaseAuthentication");
+    if (!firebaseAuthentication) return null;
+
+    const result = await firebaseAuthentication.signInWithGoogle();
+    const idToken = result?.credential?.idToken;
+    if (!idToken) {
+        throw new Error("Native Google Sign-In did not return an ID token.");
+    }
+
+    return signInWithCredential(auth, GoogleAuthProvider.credential(idToken));
+}
+
+function setupNativeShell() {
+    const appPlugin = getNativePlugin("App");
+    if (appPlugin) {
+        appPlugin.addListener("backButton", function () {
+            if (state.activeModal === "expense-category") { closeExpenseCategory(); return; }
+            if (state.activeModal === "expense-analysis") { closeExpenseAnalysis(); return; }
+            if (state.activeModal === "dashboard-month") { history.back(); return; }
+            if (dismissActiveModalForNavigation()) return;
+            closeSidebarMenu();
+
+            if (history.state?.expenseTracker && state.currentPage !== "dashboard") {
+                history.back();
+                return;
+            }
+
+            if (window.Capacitor?.getPlatform?.() === "android") {
+                appPlugin.exitApp();
+            }
+        });
+    }
+
+    document.addEventListener("click", async function (event) {
+        const link = event.target.closest("a[href]");
+        if (!link || event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+        const url = new URL(link.href, window.location.href);
+        if (url.protocol !== "http:" && url.protocol !== "https:") return;
+        if (url.origin === window.location.origin) return;
+
+        const browser = getNativePlugin("Browser");
+        if (!browser) return;
+        event.preventDefault();
+        await browser.open({ url: url.href });
+    }, true);
+}
+
 
 /* =========================================================
    STATE
@@ -53,6 +109,8 @@ const state = {
     activeModal: null,
     editingTransactionId: null,
     selectedMonth: getMonthKey(new Date()),
+    transactionMonth: getMonthKey(new Date()),
+    analysisType: "expense",
     selectedDate: getDateKey(new Date()),
     followingToday: true,
     currentBudget: null,
@@ -122,6 +180,7 @@ document.addEventListener("DOMContentLoaded", function () {
     setupQuickActions();
     setupFilters();
     setupSettings();
+    setupNativeShell();
 
     loadLocalSettings();
     document.body.classList.add("dashboard-active");
@@ -217,6 +276,7 @@ function setupLogin() {
             console.log("Opening Google popup...");
 
             const result =
+                await signInWithNativeGoogle() ||
                 await signInWithPopup(
                     auth,
                     googleProvider
@@ -391,6 +451,8 @@ function hideApp() {
 async function logoutUser() {
 
     try {
+
+        await getNativePlugin("FirebaseAuthentication")?.signOut();
 
         await signOut(auth);
 
@@ -665,7 +727,7 @@ async function saveTransaction() {
                 resetTransactionForm();
                 closeTransactionModal();
                 updateAll();
-                showToast("Transaction saved offline and will sync when you reconnect");
+                showToast("Transaction saved and will sync when you reconnect");
                 setTransactionSubmitting(false);
                 return;
             }
@@ -756,7 +818,7 @@ async function saveTransaction() {
             resetTransactionForm();
             closeTransactionModal();
             updateAll();
-            showToast("Transaction saved offline and will sync when you reconnect");
+            showToast("Transaction saved and will sync when you reconnect");
             setTransactionSubmitting(false);
             return;
         }
@@ -993,6 +1055,12 @@ function navigateToPage(pageName) {
 }
 
 function dismissActiveModalForNavigation() {
+    if (state.activeModal === "dashboard-month") {
+        document.getElementById("dashboardMonthModal")?.classList.add("hidden");
+        state.activeModal = null;
+        document.body.classList.remove("modal-open");
+        return true;
+    }
     const colourModal = document.getElementById("colourModal");
     if (colourModal && !colourModal.classList.contains("hidden")) {
         hideAppearanceModal({ restore: true });
@@ -1627,6 +1695,14 @@ function hideTransactionModal(options = {}) {
 
 
 function restoreModalFromHistory(entry) {
+    document.getElementById("dashboardMonthModal")?.classList.add("hidden");
+    if (state.activeModal === "dashboard-month") state.activeModal = null;
+    if (entry.modal === "dashboard-month") {
+        document.getElementById("dashboardMonthModal").classList.remove("hidden");
+        document.body.classList.add("modal-open");
+        state.activeModal = "dashboard-month";
+        return;
+    }
 
     if (entry.modal === "transaction") {
         const transaction = entry.transactionId
@@ -1649,14 +1725,14 @@ function restoreModalFromHistory(entry) {
     }
 
     if (entry.modal === "expense-category") {
-        showExpenseAnalysis({ fromHistory: true });
+        showExpenseAnalysis({ fromHistory: true, type: entry.analysisType });
         showExpenseCategory(entry.category, { fromHistory: true });
         return;
     }
 
     if (entry.modal === "expense-analysis") {
         hideExpenseCategory();
-        showExpenseAnalysis({ fromHistory: true });
+        showExpenseAnalysis({ fromHistory: true, type: entry.analysisType });
         return;
     }
 
@@ -2578,7 +2654,6 @@ function setupFilters() {
         "searchInput",
         "typeFilter",
         "categoryFilter",
-        "dateFilter",
         "selectedMonthInput"
     ].forEach(function (id) {
 
@@ -2612,7 +2687,7 @@ function setupFilters() {
         if (!advanced) return;
         const open = advanced.classList.toggle("hidden") === false;
         this.setAttribute("aria-expanded", String(open));
-        this.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> ' + (open ? "Hide filters" : "Search");
+        this.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> ' + t("Search transaction") + ' <i class="fa-solid fa-chevron-' + (open ? "up" : "down") + '"></i>';
     });
 
 }
@@ -2680,13 +2755,12 @@ function updateCategoryFilter() {
 }
 
 function refreshTransactionFilterLanguage() {
-    const searchButton = document.getElementById("toggleTransactionFilters"), searchInput = document.getElementById("searchInput"), type = document.getElementById("typeFilter"), date = document.getElementById("dateFilter"), category = document.getElementById("categoryFilter"), selectedMonth = document.getElementById("selectedMonthInput");
-    if (searchButton) searchButton.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> ' + t("Search");
+    const searchButton = document.getElementById("toggleTransactionFilters"), searchInput = document.getElementById("searchInput"), type = document.getElementById("typeFilter"), category = document.getElementById("categoryFilter"), selectedMonth = document.getElementById("selectedMonthInput");
+    if (searchButton) searchButton.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i> ' + t("Search transaction") + ' <i class="fa-solid fa-chevron-' + (searchButton.getAttribute("aria-expanded") === "true" ? "up" : "down") + '"></i>';
     if (searchInput) searchInput.placeholder = t("Search transactions");
     if (type) { type.setAttribute("aria-label", t("Filter by type")); Array.from(type.options).forEach(function (option) { option.textContent = t(option.value === "all" ? "All types" : option.value === "income" ? "Income" : "Expense"); }); }
     if (category) category.setAttribute("aria-label", t("Filter by category"));
     if (selectedMonth) selectedMonth.setAttribute("aria-label", t("Filter by selected month"));
-    if (date) { date.setAttribute("aria-label", t("Filter by date")); Array.from(date.options).forEach(function (option) { const labels = { selected: "Selected month", all: "All time", today: "Today", week: "Last 7 days", month: "This month" }; option.textContent = t(labels[option.value]); }); }
 }
 
 
@@ -3639,7 +3713,7 @@ function setSyncStatus(status) {
     state.syncStatus = resolvedStatus;
     const element = document.getElementById("syncStatus");
     if (!element) return;
-    element.hidden = resolvedStatus !== "offline" && resolvedStatus !== "failed";
+    element.hidden = resolvedStatus !== "failed";
     const labels = { saving: "Saving…", synced: "Synced", offline: "Offline", failed: "Sync failed" };
     element.textContent = t(labels[resolvedStatus] || labels.synced);
     element.className = "sync-status " + resolvedStatus;
@@ -3774,7 +3848,7 @@ function getDateKey(date) {
 
 function monthLabel(monthKey = state.selectedMonth) {
     const parts = String(monthKey).split("-");
-    return new Date(Number(parts[0]), Number(parts[1]) - 1, 1)
+    return new Date(parts[0] + "-" + parts[1] + "-01T00:00:00")
         .toLocaleDateString(getLocale(), { month: "long", year: "numeric" });
 }
 
@@ -3815,7 +3889,11 @@ function getAllTimeBalance() {
 
 function updateMonthUI() {
     const input = document.getElementById("selectedMonthInput");
-    if (input) input.value = state.selectedMonth;
+    if (input) input.value = state.transactionMonth;
+    const label = document.getElementById("dashboardMonthLabel");
+    if (label) label.textContent = monthLabel().toLocaleUpperCase(getLocale());
+    const picker = document.getElementById("dashboardMonthInput");
+    if (picker) picker.value = state.selectedMonth;
 }
 
 function updateTodayDateLabel() {
@@ -3827,7 +3905,7 @@ function updateTodayDateLabel() {
 }
 
 function setSelectedMonth(monthKey) {
-    if (!/^\d{4}-\d{2}$/.test(monthKey)) return;
+    if (!isValidMonth(monthKey)) return;
     state.selectedMonth = monthKey;
     const todayKey = getDateKey(new Date());
     const isCurrentMonth = monthKey === todayKey.slice(0, 7);
@@ -3847,8 +3925,96 @@ function setSelectedMonth(monthKey) {
     updateAll();
 }
 
+function isValidMonth(value) {
+    return /^\d{4}-(0[1-9]|1[0-2])$/.test(value) && Number(value.slice(0, 4)) > 0;
+}
+
+function shiftDashboardMonth(delta) {
+    const [year, month] = state.selectedMonth.split("-").map(Number);
+    const index = year * 12 + month - 1 + delta;
+    if (index < 12 || index > 9999 * 12 + 11) return;
+    setSelectedMonth(String(Math.floor(index / 12)).padStart(4, "0") + "-" + String(index % 12 + 1).padStart(2, "0"));
+}
+
+function setupDashboardMonthControls() {
+    const modal = document.getElementById("dashboardMonthModal");
+    const close = function () {
+        if (history.state?.modal === "dashboard-month") { history.back(); return; }
+        modal.classList.add("hidden");
+        state.activeModal = null;
+        document.body.classList.remove("modal-open");
+        document.getElementById("dashboardMonthButton").focus();
+    };
+    document.getElementById("dashboardMonthButton").addEventListener("click", function () {
+        updateMonthUI();
+        history.pushState(createHistoryState(state.currentPage, "dashboard-month"), "", window.location.href);
+        state.activeModal = "dashboard-month";
+        modal.classList.remove("hidden");
+        document.body.classList.add("modal-open");
+        document.getElementById("dashboardMonthInput").focus();
+    });
+    document.getElementById("closeDashboardMonth").addEventListener("click", close);
+    modal.addEventListener("click", function (event) { if (event.target === modal) close(); });
+    document.addEventListener("keydown", function (event) {
+        if (modal.classList.contains("hidden")) return;
+        if (event.key === "Escape") { event.preventDefault(); close(); }
+        if (event.key === "Tab") {
+            const first = document.getElementById("closeDashboardMonth"), last = document.getElementById("dashboardMonthInput");
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+        }
+    });
+    document.getElementById("dashboardMonthInput").addEventListener("change", function (event) {
+        if (isValidMonth(event.target.value)) { setSelectedMonth(event.target.value); close(); }
+    });
+    document.getElementById("previousDashboardMonth").addEventListener("click", function () { shiftDashboardMonth(-1); });
+    document.getElementById("nextDashboardMonth").addEventListener("click", function () { shiftDashboardMonth(1); });
+}
+
+// A single recognizer owns each touch, including click suppression after a drag.
+function setupPageSwipes() {
+    let gesture = null, suppressClickUntil = 0;
+    const blocked = () => Boolean(state.activeModal || document.body.classList.contains("modal-open") || document.querySelector('[role="dialog"]:not(.hidden), .modal-overlay:not(.hidden)'));
+    document.addEventListener("touchstart", function (event) {
+        gesture = null;
+        if (event.touches.length !== 1 || blocked()) return;
+        const touch = event.touches[0], target = event.target;
+        if (!target.closest(".page") || touch.clientX < 28 || touch.clientX > window.innerWidth - 28) return;
+        const month = target.closest("#dashboardMonthHeader");
+        if (!month && target.closest('input, select, textarea, button, a, [contenteditable], canvas, [data-no-page-swipe], [data-swipe-ignore], [role="slider"], .spending-content, .colour-wheel, .mobile-bottom-nav')) return;
+        // Preserve components with their own horizontal scrolling.
+        for (let node = target; !month && node && !node.classList.contains("page"); node = node.parentElement) {
+            if (node.scrollWidth > node.clientWidth + 2 && /auto|scroll/.test(getComputedStyle(node).overflowX)) return;
+        }
+        gesture = { x: touch.clientX, y: touch.clientY, month: Boolean(month), page: state.currentPage, horizontal: false };
+    }, { passive: true });
+    document.addEventListener("touchmove", function (event) {
+        if (!gesture) return;
+        if (event.touches.length !== 1 || blocked()) { gesture = null; return; }
+        const dx = event.touches[0].clientX - gesture.x, dy = event.touches[0].clientY - gesture.y;
+        if (!gesture.horizontal && Math.abs(dy) > 12 && Math.abs(dy) >= Math.abs(dx) / 1.5) { gesture = null; return; }
+        if (Math.abs(dx) > 16 && Math.abs(dx) > Math.abs(dy) * 1.8) gesture.horizontal = true;
+        if (gesture.horizontal && event.cancelable) event.preventDefault();
+    }, { passive: false });
+    document.addEventListener("touchend", function (event) {
+        const current = gesture; gesture = null;
+        if (!current || !event.changedTouches.length) return;
+        const dx = event.changedTouches[0].clientX - current.x, dy = event.changedTouches[0].clientY - current.y;
+        if (Math.abs(dx) > 16 || Math.abs(dy) > 16) suppressClickUntil = Date.now() + 500;
+        if (blocked() || state.currentPage !== current.page || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
+        if (current.month) { shiftDashboardMonth(dx < 0 ? 1 : -1); return; }
+        const pages = Array.from(document.querySelectorAll(".mobile-nav-item[data-page]")).map(node => node.dataset.page);
+        const index = pages.indexOf(current.page), next = index + (dx < 0 ? 1 : -1);
+        if (index >= 0 && next >= 0 && next < pages.length) navigateToPage(pages[next]);
+    }, { passive: true });
+    document.addEventListener("touchcancel", function () { gesture = null; });
+    document.addEventListener("click", function (event) {
+        if (Date.now() < suppressClickUntil && event.detail !== 0) { event.preventDefault(); event.stopImmediatePropagation(); }
+    }, true);
+}
+
 function setupMonthSelector() {
-    document.getElementById("selectedMonthInput")?.addEventListener("change", function (event) { setSelectedMonth(event.target.value); });
+    document.getElementById("selectedMonthInput")?.addEventListener("change", function (event) { if (isValidMonth(event.target.value)) { state.transactionMonth = event.target.value; renderAllTransactions(); } });
     updateMonthUI();
 }
 
@@ -4004,20 +4170,15 @@ function updateCategoryBudgetTotalLegacy() {
 
 function renderAllTransactions() {
     const container = document.getElementById("allTransactions"); if (!container) return;
-    const search = (document.getElementById("searchInput")?.value || "").toLowerCase(), type = document.getElementById("typeFilter")?.value || "all", category = document.getElementById("categoryFilter")?.value || "all", filter = document.getElementById("dateFilter")?.value || "selected";
-    const today = new Date();
+    const search = (document.getElementById("searchInput")?.value || "").toLowerCase(), type = document.getElementById("typeFilter")?.value || "all", category = document.getElementById("categoryFilter")?.value || "all";
     const items = state.transactions.filter(function (item) {
         const matchesText = String(item.category || "").toLowerCase().includes(search) || getCategoryDisplayName(item.category || "").toLowerCase().includes(search) || String(item.note || "").toLowerCase().includes(search);
         const matchesType = type === "all" || item.type === type, matchesCategory = category === "all" || item.category === category;
-        let matchesDate = true; const itemDate = new Date(String(item.date || "") + "T00:00:00");
-        if (filter === "selected") matchesDate = isInSelectedMonth(item);
-        if (filter === "today") matchesDate = itemDate.toDateString() === today.toDateString();
-        if (filter === "week") { const cutoff = new Date(); cutoff.setDate(today.getDate() - 7); matchesDate = itemDate >= cutoff; }
-        if (filter === "month") matchesDate = itemDate.getMonth() === today.getMonth() && itemDate.getFullYear() === today.getFullYear();
+        const matchesDate = String(item.date || "").slice(0, 7) === state.transactionMonth;
         return matchesText && matchesType && matchesCategory && matchesDate;
     }).sort(sortTransactionsNewestFirst);
     container.innerHTML = "";
-    if (!items.length) { container.innerHTML = '<div class="empty-state"><div class="empty-icon"><i class="fa-solid fa-receipt"></i></div><h4>' + t("No transactions for") + ' ' + escapeHTML(filter === "selected" ? monthLabel() : t("this filter")) + '</h4></div>'; return; }
+    if (!items.length) { container.innerHTML = '<div class="empty-state"><div class="empty-icon"><i class="fa-solid fa-receipt"></i></div><h4>' + t("No transactions for") + ' ' + escapeHTML(monthLabel(state.transactionMonth)) + '</h4></div>'; return; }
     const groups = items.reduce(function (all, item) { const key = String(item.date || ""); (all[key] ||= []).push(item); return all; }, {});
     Object.keys(groups).sort(function (a, b) { return b.localeCompare(a); }).forEach(function (date) {
         const group = document.createElement("section"); group.className = "transaction-date-group";
@@ -4384,8 +4545,8 @@ function renderSpendingBreakdown() {
     recordDashboardRender("chartCreate");
 }
 
-function getSelectedMonthExpenseBreakdown() {
-    const totals = getSelectedMonthTransactions().filter(function (item) { return item.type === "expense"; }).reduce(function (all, item) {
+function getSelectedMonthExpenseBreakdown(type = "expense") {
+    const totals = getSelectedMonthTransactions().filter(function (item) { return item.type === type; }).reduce(function (all, item) {
         const category = item.category || "Other";
         all[category] = (all[category] || 0) + Number(item.amount || 0);
         return all;
@@ -4397,12 +4558,14 @@ function getSelectedMonthExpenseBreakdown() {
 function setupExpenseAnalysis() {
     const card = document.getElementById("expenseBreakdownCard"), modal = document.getElementById("expenseAnalysisModal");
     if (!card || !modal) return;
-    card.addEventListener("click", function () { showExpenseAnalysis(); });
+    card.addEventListener("click", function (event) { if (event.target.closest("[data-no-page-swipe]")) showExpenseAnalysis(); });
     card.addEventListener("keydown", function (event) {
+        if (!event.target.closest("[data-no-page-swipe]")) return;
         if (event.key !== "Enter" && event.key !== " ") return;
         event.preventDefault();
         showExpenseAnalysis();
     });
+    document.getElementById("analysisIncomeButton")?.addEventListener("click", function () { showExpenseAnalysis({ type: "income" }); });
     const list = document.getElementById("expenseAnalysisList");
     list?.addEventListener("click", function (event) {
         const row = event.target.closest("[data-expense-category]");
@@ -4429,8 +4592,9 @@ function setupExpenseAnalysis() {
 
 function showExpenseAnalysis(options = {}) {
     const modal = document.getElementById("expenseAnalysisModal");
-    if (!modal || (state.activeModal === "expense-analysis" && !modal.classList.contains("hidden"))) return;
-    if (!options.fromHistory) history.pushState(createHistoryState(state.currentPage, "expense-analysis"), "", window.location.href);
+    if (!modal) return;
+    state.analysisType = options.type === "income" ? "income" : "expense";
+    if (!options.fromHistory) history.pushState({ ...createHistoryState(state.currentPage, "expense-analysis"), analysisType: state.analysisType }, "", window.location.href);
     renderExpenseAnalysis();
     modal.classList.remove("hidden");
     document.body.classList.add("modal-open");
@@ -4457,7 +4621,7 @@ function hideExpenseAnalysis() {
 function showExpenseCategory(category, options = {}) {
     const modal = document.getElementById("expenseCategoryModal");
     if (!modal) return;
-    if (!options.fromHistory) history.pushState({ ...createHistoryState(state.currentPage, "expense-category"), category: category }, "", window.location.href);
+    if (!options.fromHistory) history.pushState({ ...createHistoryState(state.currentPage, "expense-category"), category: category, analysisType: state.analysisType }, "", window.location.href);
     modal.dataset.category = category;
     renderExpenseCategory();
     modal.classList.remove("hidden");
@@ -4492,11 +4656,11 @@ function renderExpenseCategory() {
     if (!modal || modal.dataset.category === undefined) return;
     const category = modal.dataset.category;
     const transactions = getSelectedMonthTransactions().filter(function (item) {
-        return item.type === "expense" && (item.category || "Other") === category;
+        return item.type === state.analysisType && (item.category || "Other") === category;
     }).sort(sortTransactionsNewestFirst);
     document.getElementById("expenseCategoryTitle").textContent = getCategoryDisplayName(category);
     document.getElementById("expenseCategoryMonth").textContent = monthLabel();
-    modal.querySelector(".expense-analysis-total span").textContent = t("Total Expenses");
+    modal.querySelector(".expense-analysis-total span").textContent = t(state.analysisType === "income" ? "Total Income" : "Total Expenses");
     document.getElementById("expenseCategoryTotal").textContent = formatCurrency(transactions.reduce(function (sum, item) {
         return sum + Number(item.amount || 0);
     }, 0));
@@ -4508,14 +4672,19 @@ function renderExpenseCategory() {
 function renderExpenseAnalysis() {
     const modal = document.getElementById("expenseAnalysisModal");
     if (!modal) return;
-    const breakdown = getSelectedMonthExpenseBreakdown(), entries = breakdown.entries, total = breakdown.total;
+    const breakdown = getSelectedMonthExpenseBreakdown(state.analysisType), entries = breakdown.entries, total = breakdown.total;
     renderExpenseCategory();
+    document.getElementById("analysisIncomeButton").classList.toggle("hidden", state.analysisType === "income");
+    document.getElementById("analysisIncomeTotal").textContent = formatCurrency(getIncome());
+    document.querySelector("#analysisIncomeButton span").textContent = t("Total Income");
+    document.getElementById("expenseAnalysisList").setAttribute("aria-label", t(state.analysisType === "income" ? "Income categories" : "Expense categories"));
+    document.getElementById("analysisPeriodLabel").textContent = monthLabel().toLocaleUpperCase(getLocale());
     const title = document.getElementById("expenseAnalysisTitle"), month = document.getElementById("expenseAnalysisMonth"), totalLabel = modal.querySelector(".expense-analysis-total span"), totalAmount = document.getElementById("expenseAnalysisTotal"), empty = document.getElementById("expenseAnalysisEmpty"), list = document.getElementById("expenseAnalysisList");
-    if (title) title.textContent = t("Expense Analysis");
+    if (title) title.textContent = t(state.analysisType === "income" ? "Income Analysis" : "Expense Analysis");
     if (month) month.textContent = monthLabel();
-    if (totalLabel) totalLabel.textContent = t("Total Expenses");
+    if (totalLabel) totalLabel.textContent = t(state.analysisType === "income" ? "Total Income" : "Total Expenses");
     if (totalAmount) totalAmount.textContent = formatCurrency(total);
-    if (empty) { empty.classList.toggle("hidden", total > 0); empty.querySelector("h4").textContent = t("No expenses this month"); }
+    if (empty) { empty.classList.toggle("hidden", total > 0); empty.querySelector("h4").textContent = t(state.analysisType === "income" ? "No income this month" : "No expenses this month"); }
     if (!list) return;
     list.classList.toggle("hidden", total <= 0);
     list.innerHTML = entries.map(function (entry) {
@@ -4721,7 +4890,7 @@ async function convertCurrency() {
     }
     if (cached) renderConverterRate(cached, true);
     if (!navigator.onLine) {
-        updateConverterStatus(cached ? "Cached rate · offline" : "Offline · no cached rate", cached ? "cached" : "error");
+        updateConverterStatus(cached ? "Cached rate" : "Rate unavailable", cached ? "cached" : "error");
         return;
     }
     updateConverterStatus(cached ? "Refreshing rate…" : "Loading rate…");
@@ -4771,7 +4940,7 @@ function setupCurrencyConverter() {
     convertCurrency();
 }
 
-document.addEventListener("DOMContentLoaded", function () { document.getElementById("dateFilter").value = "selected"; setupSyncStatus(); setupMonthSelector(); updateTodayDateLabel(); scheduleSelectedDateMidnightCheck(); setupBudget(); renderBudgetLanguage(); setupGuestImport(); setupAppearancePersistence(); setupCurrencyConverter(); updateDashboardControlsVisibility(); updateAll(); });
+document.addEventListener("DOMContentLoaded", function () { setupDashboardMonthControls(); setupPageSwipes(); setupSyncStatus(); setupMonthSelector(); updateTodayDateLabel(); scheduleSelectedDateMidnightCheck(); setupBudget(); renderBudgetLanguage(); setupGuestImport(); setupAppearancePersistence(); setupCurrencyConverter(); updateDashboardControlsVisibility(); updateAll(); });
 onAuthStateChanged(auth, function (user) {
     if (!user) { if (state.unsubscribeBudget) { state.unsubscribeBudget(); state.unsubscribeBudget = null; } state.currentBudget = null; updateBudgetUI(); return; }
     loadBudget(); const guestItems = loadGuestTransactions();
@@ -4982,6 +5151,14 @@ Object.assign(translations.zh, {
     "Expense Analysis":"开销分析", "Total Expenses":"总支出", "No expenses this month":"本月暂无支出", "Open expense analysis":"打开开销分析"
 });
 
+Object.assign(translations.zh, {
+    "Search transaction": "搜尋交易", "Total Income": "總收入", "Income Analysis": "收入分析",
+    "Income categories": "收入分類", "Expense categories": "支出分類", "No income this month": "本月沒有收入",
+    "Previous month": "上一月", "Next month": "下一月", "Select month": "選擇年月",
+    "Cached rate": "快取匯率", "Rate unavailable": "匯率暫不可用",
+    "Transaction saved and will sync when you reconnect": "交易已儲存，重新連線後會同步"
+});
+
 function getLanguage() { return localStorage.getItem("expense_language") === "zh" ? "zh" : "en"; }
 function getLocale() { return getLanguage() === "zh" ? "zh-Hans-MY" : "en-GB"; }
 function t(value) {
@@ -4997,13 +5174,15 @@ function getCategoryDisplayName(category, language = getLanguage()) {
 function applyLanguage(language) {
     localStorage.setItem("expense_language", language === "zh" ? "zh" : "en");
     const select = document.getElementById("languageSelect"); if (select) select.value = getLanguage();
-    updateAll(); refreshTransactionFilterLanguage(); refreshNicknameLanguage(); updateBudgetUI(); updateTodayDateLabel();
+    updateAll(); updateMonthUI(); refreshTransactionFilterLanguage(); refreshNicknameLanguage(); updateBudgetUI(); updateTodayDateLabel();
     const modalTitle = document.querySelector("#transactionModal:not(.hidden) h2"); if (modalTitle) modalTitle.textContent = getTransactionModalTitle();
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
     const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
     nodes.forEach(function (node) { const raw = node.__sourceText || node.nodeValue; node.__sourceText = raw; const trimmed = raw.trim(), translated = t(trimmed); node.nodeValue = raw.replace(trimmed, translated); });
-    document.querySelectorAll("[placeholder],[aria-label]").forEach(function (element) { ["placeholder", "aria-label"].forEach(function (attribute) { const key = "i18n" + attribute, value = element.dataset[key] || element.getAttribute(attribute); if (value) { element.dataset[key] = value; element.setAttribute(attribute, t(value)); } }); });
+    document.querySelectorAll("[placeholder],[aria-label]").forEach(function (element) { ["placeholder", "aria-label"].forEach(function (attribute) { const key = "i18n" + attribute.replace(/-([a-z])/g, function (_, letter) { return letter.toUpperCase(); }), value = element.dataset[key] || element.getAttribute(attribute); if (value) { element.dataset[key] = value; element.setAttribute(attribute, t(value)); } }); });
     renderBudgetLanguage();
+    updateMonthUI();
+    renderExpenseAnalysis();
 }
 
 function updateBudgetUILegacy2() {
