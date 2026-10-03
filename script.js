@@ -58,6 +58,8 @@ function setupNativeShell() {
             if (state.activeModal === "expense-category") { closeExpenseCategory(); return; }
             if (state.activeModal === "expense-analysis") { closeExpenseAnalysis(); return; }
             if (state.activeModal === "dashboard-month") { history.back(); return; }
+            if (state.activeModal && history.state?.expenseTracker && history.state.modal) { history.back(); return; }
+            if (document.getElementById("sidebar")?.classList.contains("open")) { closeSidebarMenu(); return; }
             if (dismissActiveModalForNavigation()) return;
             closeSidebarMenu();
 
@@ -999,6 +1001,9 @@ function setupNavigation() {
         openSidebar.addEventListener(
             "click",
             function () {
+                if (dismissActiveModalForNavigation() && history.state?.modal) {
+                    history.replaceState(createHistoryState(state.currentPage), "", window.location.href);
+                }
 
                 const sidebar =
                     document.getElementById(
@@ -1054,41 +1059,6 @@ function navigateToPage(pageName) {
     showPage(pageName, "none");
 }
 
-function dismissActiveModalForNavigation() {
-    if (state.activeModal === "dashboard-month") {
-        document.getElementById("dashboardMonthModal")?.classList.add("hidden");
-        state.activeModal = null;
-        document.body.classList.remove("modal-open");
-        return true;
-    }
-    const colourModal = document.getElementById("colourModal");
-    if (colourModal && !colourModal.classList.contains("hidden")) {
-        hideAppearanceModal({ restore: true });
-        return true;
-    }
-    const expenseAnalysisOpen = state.activeModal === "expense-analysis" || !document.getElementById("expenseAnalysisModal")?.classList.contains("hidden");
-    if (expenseAnalysisOpen) {
-        hideExpenseAnalysis();
-        return true;
-    }
-    const transactionOpen = state.activeModal === "transaction" || !document.getElementById("transactionModal")?.classList.contains("hidden");
-    const transactionViewOpen = state.activeModal === "view" || !document.getElementById("transactionViewModal")?.classList.contains("hidden");
-    const budgetOpen = state.activeModal === "budget" || !document.getElementById("budgetModal")?.classList.contains("hidden");
-    if (transactionOpen || transactionViewOpen) {
-        hideTransactionModal({ discard: true });
-        hideTransactionView();
-        state.activeModal = null;
-        state.editingTransactionId = null;
-        document.body.classList.remove("modal-open");
-        document.documentElement.classList.remove("transaction-modal-open");
-        return true;
-    }
-    if (budgetOpen) {
-        hideBudgetModal({ discard: true });
-        return true;
-    }
-    return false;
-}
 
 
 function closeSidebarMenu() {
@@ -1119,12 +1089,57 @@ function closeSidebarMenu() {
 }
 
 
+let modalSession = 0;
+const retiredModalSessions = new Set();
+
+function clearModalDisplay() {
+    closeSidebarMenu();
+    const ids = ["dashboardMonthModal", "colourModal", "expenseAnalysisModal", "expenseCategoryModal", "transactionModal", "transactionViewModal", "budgetModal", "guestImportModal"];
+    const visible = id => {
+        const element = document.getElementById(id);
+        return element && !element.classList.contains("hidden");
+    };
+    const wasOpen = Boolean(state.activeModal || ids.some(visible));
+    if (visible("transactionModal")) hideTransactionModal({ discard: true });
+    if (visible("budgetModal")) hideBudgetModal({ discard: true });
+    if (visible("colourModal")) hideAppearanceModal();
+    ids.forEach(id => document.getElementById(id)?.classList.add("hidden"));
+    const analysis = document.getElementById("expenseAnalysisModal");
+    if (analysis) analysis.inert = false;
+    const category = document.getElementById("expenseCategoryModal");
+    if (category) delete category.dataset.category;
+    state.activeModal = null;
+    state.editingTransactionId = null;
+    document.body.classList.remove("modal-open");
+    document.documentElement.classList.remove("transaction-modal-open");
+    return wasOpen;
+}
+
+function dismissActiveModalForNavigation() {
+    const wasOpen = clearModalDisplay();
+    if (history.state?.modalSession) retiredModalSessions.add(history.state.modalSession);
+    return wasOpen;
+}
+
+function prepareModalSwitch(options = {}) {
+    const previous = history.state;
+    const wasOpen = clearModalDisplay();
+    if (!options.nested) {
+        if (wasOpen && previous?.modalSession) retiredModalSessions.add(previous.modalSession);
+        if (wasOpen && previous?.expenseTracker && previous.modal) {
+            history.replaceState(createHistoryState(state.currentPage), "", window.location.href);
+        }
+        modalSession += 1;
+    }
+}
+
 function createHistoryState(page, modal = null, transactionId = null) {
 
     return {
         expenseTracker: true,
         page: page,
         modal: modal,
+        modalSession: modal ? (history.state?.modal && !retiredModalSessions.has(history.state.modalSession) ? history.state.modalSession || modalSession : modalSession) : null,
         transactionId: transactionId
     };
 
@@ -1174,6 +1189,8 @@ function showPage(pageName, historyMode = "push") {
         return;
     }
 
+
+    if (historyMode !== "none") dismissActiveModalForNavigation();
 
     if (pageName === state.currentPage) {
         return;
@@ -1516,8 +1533,9 @@ function stopTransactionModalViewport() {
 function openTransactionModal(type, transaction = null) {
 
     const modal = document.getElementById("transactionModal");
-    if (state.activeModal === "transaction" && modal && !modal.classList.contains("hidden")) return;
+    if (state.activeModal === "transaction" && modal && !modal.classList.contains("hidden") && state.currentType === type && state.editingTransactionId === (transaction?.id || null)) return;
 
+    prepareModalSwitch({ nested: state.activeModal === "view" });
     history.pushState(
         createHistoryState(
             state.currentPage,
@@ -1695,6 +1713,12 @@ function hideTransactionModal(options = {}) {
 
 
 function restoreModalFromHistory(entry) {
+    const currentType = state.currentType;
+    clearModalDisplay();
+    if (entry.modalSession && retiredModalSessions.has(entry.modalSession)) {
+        history.replaceState(createHistoryState(entry.page || "dashboard"), "", window.location.href);
+        return;
+    }
     document.getElementById("dashboardMonthModal")?.classList.add("hidden");
     if (state.activeModal === "dashboard-month") state.activeModal = null;
     if (entry.modal === "dashboard-month") {
@@ -1709,7 +1733,7 @@ function restoreModalFromHistory(entry) {
             ? state.transactions.find(function (item) { return item.id === entry.transactionId; })
             : null;
 
-        displayTransactionModal(transaction ? transaction.type : state.currentType, transaction);
+        displayTransactionModal(transaction ? transaction.type : currentType, transaction);
         return;
     }
 
@@ -1771,6 +1795,7 @@ function hideAppearanceModal(options = {}) {
     }
 
     modal.classList.add("hidden");
+    if (state.activeModal === "appearance") state.activeModal = null;
     modal.__appearanceOriginal = null;
     modal.__appearanceRestoreOnClose = true;
     document.body.classList.remove("modal-open");
@@ -1830,6 +1855,7 @@ function setupTransactionView() {
 
 
 function openTransactionView(transaction) {
+    prepareModalSwitch();
 
     history.pushState(
         createHistoryState(state.currentPage, "view", transaction.id),
@@ -1866,6 +1892,7 @@ function displayTransactionView(transaction) {
 
     document.getElementById("transactionModal")?.classList.add("hidden");
     modal.classList.remove("hidden");
+    document.body.classList.add("modal-open");
     state.activeModal = "view";
     state.editingTransactionId = null;
 
@@ -1887,6 +1914,7 @@ function closeTransactionView() {
 function hideTransactionView() {
 
     document.getElementById("transactionViewModal")?.classList.add("hidden");
+    document.body.classList.remove("modal-open");
 
     if (state.activeModal === "view") {
         state.activeModal = null;
@@ -3946,6 +3974,7 @@ function setupDashboardMonthControls() {
         document.getElementById("dashboardMonthButton").focus();
     };
     document.getElementById("dashboardMonthButton").addEventListener("click", function () {
+        prepareModalSwitch();
         updateMonthUI();
         history.pushState(createHistoryState(state.currentPage, "dashboard-month"), "", window.location.href);
         state.activeModal = "dashboard-month";
@@ -4288,7 +4317,7 @@ function persistGuestTransactions() { localStorage.setItem("expense_guest_transa
 function loadGuestTransactions() { try { const data = JSON.parse(localStorage.getItem("expense_guest_transactions") || "[]"); return Array.isArray(data) ? data.filter(function (item) { return item && item.id; }).sort(sortTransactionsNewestFirst) : []; } catch (_) { return []; } }
 
 function setupGuestImport() {
-    const modal = document.getElementById("guestImportModal"), close = function () { modal?.classList.add("hidden"); };
+    const modal = document.getElementById("guestImportModal"), close = function () { if (state.activeModal === "guest-import") dismissActiveModalForNavigation(); else modal?.classList.add("hidden"); };
     document.getElementById("skipGuestImportButton")?.addEventListener("click", close);
     document.getElementById("confirmGuestImportButton")?.addEventListener("click", async function () {
         const guestItems = loadGuestTransactions(); if (!state.currentUser || !guestItems.length) return close();
@@ -4373,6 +4402,7 @@ function setupAppearancePersistence() {
     modal.__appearanceRefresh = refresh;
     document.getElementById("openColourModal")?.addEventListener("click", function () {
         if (!modal.classList.contains("hidden")) return;
+        prepareModalSwitch();
         const styles = getComputedStyle(document.documentElement);
         modal.__appearanceOriginal = { primary: styles.getPropertyValue("--primary").trim(), secondary: styles.getPropertyValue("--secondary").trim() };
         modal.__appearanceRestoreOnClose = true;
@@ -4383,6 +4413,7 @@ function setupAppearancePersistence() {
         history.pushState(createHistoryState(state.currentPage, "appearance"), "", window.location.href);
         modal.classList.remove("hidden");
         document.body.classList.add("modal-open");
+        state.activeModal = "appearance";
         requestAnimationFrame(updateControls);
         document.getElementById("closeColourModal")?.focus();
     });
@@ -4593,6 +4624,7 @@ function setupExpenseAnalysis() {
 function showExpenseAnalysis(options = {}) {
     const modal = document.getElementById("expenseAnalysisModal");
     if (!modal) return;
+    if (!options.fromHistory) prepareModalSwitch();
     state.analysisType = options.type === "income" ? "income" : "expense";
     if (!options.fromHistory) history.pushState({ ...createHistoryState(state.currentPage, "expense-analysis"), analysisType: state.analysisType }, "", window.location.href);
     renderExpenseAnalysis();
@@ -4621,10 +4653,13 @@ function hideExpenseAnalysis() {
 function showExpenseCategory(category, options = {}) {
     const modal = document.getElementById("expenseCategoryModal");
     if (!modal) return;
-    if (!options.fromHistory) history.pushState({ ...createHistoryState(state.currentPage, "expense-category"), category: category, analysisType: state.analysisType }, "", window.location.href);
+    const replacingCategory = state.activeModal === "expense-category";
+    if (!options.fromHistory) prepareModalSwitch({ nested: state.activeModal === "expense-analysis" || replacingCategory });
+    if (!options.fromHistory) history[replacingCategory ? "replaceState" : "pushState"]({ ...createHistoryState(state.currentPage, "expense-category"), category: category, analysisType: state.analysisType }, "", window.location.href);
     modal.dataset.category = category;
     renderExpenseCategory();
     modal.classList.remove("hidden");
+    document.getElementById("expenseAnalysisModal").classList.add("hidden");
     document.getElementById("expenseAnalysisModal").inert = true;
     document.body.classList.add("modal-open");
     state.activeModal = "expense-category";
@@ -4636,7 +4671,9 @@ function closeExpenseCategory() {
         history.back();
         return;
     }
+    const type = state.analysisType;
     hideExpenseCategory();
+    showExpenseAnalysis({ fromHistory: true, type });
 }
 
 function hideExpenseCategory() {
@@ -4644,10 +4681,11 @@ function hideExpenseCategory() {
     if (!modal || modal.classList.contains("hidden")) return;
     modal.classList.add("hidden");
     document.getElementById("expenseAnalysisModal").inert = false;
-    state.activeModal = "expense-analysis";
+    if (state.activeModal === "expense-category") state.activeModal = null;
     const row = Array.from(document.querySelectorAll("[data-expense-category]")).find(function (item) {
         return item.dataset.expenseCategory === modal.dataset.category;
     });
+    delete modal.dataset.category;
     (row || document.getElementById("closeExpenseAnalysis"))?.focus();
 }
 
@@ -4944,7 +4982,7 @@ document.addEventListener("DOMContentLoaded", function () { setupDashboardMonthC
 onAuthStateChanged(auth, function (user) {
     if (!user) { if (state.unsubscribeBudget) { state.unsubscribeBudget(); state.unsubscribeBudget = null; } state.currentBudget = null; updateBudgetUI(); return; }
     loadBudget(); const guestItems = loadGuestTransactions();
-    if (guestItems.length) { document.getElementById("guestImportMessage").textContent = "You have " + guestItems.length + " transaction" + (guestItems.length === 1 ? "" : "s") + " saved on this device. Would you like to add them to your account?"; document.getElementById("guestImportModal")?.classList.remove("hidden"); }
+    if (guestItems.length) { document.getElementById("guestImportMessage").textContent = "You have " + guestItems.length + " transaction" + (guestItems.length === 1 ? "" : "s") + " saved on this device. Would you like to add them to your account?"; prepareModalSwitch(); document.getElementById("guestImportModal")?.classList.remove("hidden"); state.activeModal = "guest-import"; document.body.classList.add("modal-open"); }
 });
 
 /* Active budget implementation: category budgets only. Existing document.amount is untouched. */
@@ -4961,6 +4999,7 @@ function setupBudget() {
     const close = function () { closeBudgetModal(); };
     const open = function (category = null) {
         if (state.activeModal === "budget" && !modal.classList.contains("hidden")) return;
+        prepareModalSwitch();
         history.pushState(createHistoryState(state.currentPage, "budget"), "", window.location.href);
         editingCategory = category;
         const select = document.getElementById("budgetCategorySelect");
