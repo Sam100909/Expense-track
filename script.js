@@ -4717,7 +4717,7 @@ function renderExpenseAnalysis() {
     document.querySelector("#analysisIncomeButton span").textContent = t("Total Income");
     document.getElementById("expenseAnalysisList").setAttribute("aria-label", t(state.analysisType === "income" ? "Income categories" : "Expense categories"));
     document.getElementById("analysisPeriodLabel").textContent = monthLabel().toLocaleUpperCase(getLocale());
-    const title = document.getElementById("expenseAnalysisTitle"), month = document.getElementById("expenseAnalysisMonth"), totalLabel = modal.querySelector(".expense-analysis-total span"), totalAmount = document.getElementById("expenseAnalysisTotal"), empty = document.getElementById("expenseAnalysisEmpty"), list = document.getElementById("expenseAnalysisList");
+    const title = document.getElementById("expenseAnalysisTitle"), month = document.getElementById("expenseAnalysisMonth"), totalLabel = modal.querySelector("div.expense-analysis-total span"), totalAmount = document.getElementById("expenseAnalysisTotal"), empty = document.getElementById("expenseAnalysisEmpty"), list = document.getElementById("expenseAnalysisList");
     if (title) title.textContent = t(state.analysisType === "income" ? "Income Analysis" : "Expense Analysis");
     if (month) month.textContent = monthLabel();
     if (totalLabel) totalLabel.textContent = t(state.analysisType === "income" ? "Total Income" : "Total Expenses");
